@@ -1,0 +1,37 @@
+[
+  {
+    "key": "dark",
+    "bytes": 1693463,
+    "sha256": "d010bb0c3f9e9f855e0ce36486f30673db414739c02d62344398197927fdc24a",
+    "license": "CC0-1.0",
+    "file": "dark_cavern_ambient_002.ogg"
+  },
+  {
+    "key": "light",
+    "bytes": 25290280,
+    "sha256": "f0538a1a67450cc1d5e305fad5bc0d5d422ad809f720d695ab356e55fbe40fc5",
+    "license": "CC0-1.0",
+    "file": "first_light_particles.wav"
+  },
+  {
+    "key": "near",
+    "bytes": 50215,
+    "sha256": "e8bb5c9d3d25172666c60ed302d354144b67e66170bdf039ec88f4b6b0cd879f",
+    "license": "CC0-1.0",
+    "file": "monster_01.ogg"
+  },
+  {
+    "key": "attack1",
+    "bytes": 28522,
+    "sha256": "ceb532ee0fe775d6f86a821099b75f1790ab8022b963cb837c8c1fa4fffee5c2",
+    "license": "CC0-1.0",
+    "file": "roar_02.ogg"
+  },
+  {
+    "key": "attack2",
+    "bytes": 24977,
+    "sha256": "983396c808eb658ed3bd223ffaf9ea7f756dba7bc45ecc3fde117083026a4556",
+    "license": "CC0-1.0",
+    "file": "roar_03.ogg"
+  }
+]
