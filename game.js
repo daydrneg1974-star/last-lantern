@@ -18,12 +18,15 @@
   const Art=typeof module!=='undefined'&&module.exports?require('./scenery.js'):window.LanternArt;
   const art=new Art(ctx,buildings,W,H);
   const sound=typeof module!=='undefined'&&module.exports?new (require('./sound.js').LanternSound)(window):window.lanternSound;
-  const keys=new Set();let state='menu',player,lamps,sparks,enemies,particles,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,elapsed=0,last=0;
-  function reset(){art.reset();sound.resetMusic();player={x:60,y:490,r:12,bag:0,lives:settings().lives};lamps=lampPositions.map(([x,y])=>({x,y,lit:false,ignition:0}));sparks=sparkPositions.map(([x,y],i)=>({x,y,t:i*.9,taken:false}));enemies=[[600,390],[1090,710],[880,250],[310,220]].map(([x,y],i)=>({x,y,r:14,vx:0,vy:0,phase:i*2}));dangerPulse=0;dangerCooldown=0;particles=[];remaining=120;cooldown=0;invulnerable=0;burst=0;burstOrigin=null;hitFlash=0;elapsed=0;navClock=0;field=[];keys.clear();updateUI();}
+  // Touch joystick axis from mobile.js. Keyboard keeps priority; both clear together.
+  const touchAxis={x:0,y:0};const touchUI=document.documentElement.classList.contains('mobile');
+  function setAxis(x,y){const len=Math.hypot(x,y);if(!Number.isFinite(len)||len<1e-6){touchAxis.x=0;touchAxis.y=0;return;}touchAxis.x=x/len;touchAxis.y=y/len;}
+  const keys=new Set();const clearInput=()=>{keys.clear();touchAxis.x=0;touchAxis.y=0;};let state='menu',player,lamps,sparks,enemies,particles,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,elapsed=0,last=0;
+  function reset(){art.reset();sound.resetMusic();player={x:60,y:490,r:12,bag:0,lives:settings().lives};lamps=lampPositions.map(([x,y])=>({x,y,lit:false,ignition:0}));sparks=sparkPositions.map(([x,y],i)=>({x,y,t:i*.9,taken:false}));enemies=[[600,390],[1090,710],[880,250],[310,220]].map(([x,y],i)=>({x,y,r:14,vx:0,vy:0,phase:i*2}));dangerPulse=0;dangerCooldown=0;particles=[];remaining=120;cooldown=0;invulnerable=0;burst=0;burstOrigin=null;hitFlash=0;elapsed=0;navClock=0;field=[];clearInput();updateUI();}
   const modePicker=document.getElementById('modePicker'),modeSelect=document.getElementById('modeSelect'),modeDetails=document.getElementById('modeDetails');
   function selectMode(value){if(state!=='menu'||!Object.hasOwn(MODES,value))return;selectedMode=value;activeMode=value;player.lives=settings().lives;updateUI();modeSelect.value=value;modeDetails.textContent=`Выбрано: ${MODES[value].name} · ${MODES[value].lives} ${value==='training'?'жизней':'жизни'} · защита ${MODES[value].immunity} сек.`;ui.intro.innerHTML=`<span><b>7</b> фонарей</span><span><b>120</b> секунд</span>`;}
   let startToken=0,previewPaused=false;
-  function showMenu(){previewPaused=false;startToken++;sound.stopDiagnostic();sound.setScene('menu');state='menu';activeMode=selectedMode;reset();ui.start.disabled=false;modeSelect.disabled=false;keys.clear();ui.overlay.hidden=false;ui.pause.disabled=true;ui.intro.hidden=false;ui.restart.hidden=true;modePicker.hidden=false;ui.eyebrow.textContent='МАЛЕНЬКАЯ ИСТОРИЯ В БОЛЬШОМ ГОРОДЕ';ui.title.innerHTML='Последний<br><span>фонарь</span>';ui.description.textContent='Соберите искры и зажгите семь фонарей, пока ночь не забрала последний свет.';ui.start.textContent='Зажечь надежду →';ui.tip.textContent='Свет фонарей защищает от теней.';ui.hint.hidden=true;selectMode(selectedMode);}
+  function showMenu(){previewPaused=false;startToken++;sound.stopDiagnostic();sound.setScene('menu');state='menu';activeMode=selectedMode;reset();ui.start.disabled=false;modeSelect.disabled=false;clearInput();ui.overlay.hidden=false;ui.pause.disabled=true;ui.intro.hidden=false;ui.restart.hidden=true;modePicker.hidden=false;ui.eyebrow.textContent='МАЛЕНЬКАЯ ИСТОРИЯ В БОЛЬШОМ ГОРОДЕ';ui.title.innerHTML='Последний<br><span>фонарь</span>';ui.description.textContent='Соберите искры и зажгите семь фонарей, пока ночь не забрала последний свет.';ui.start.textContent='Зажечь надежду →';ui.tip.textContent='Свет фонарей защищает от теней.';ui.hint.hidden=true;selectMode(selectedMode);}
   modeSelect.onchange=()=>selectMode(modeSelect.value);
   function start(){previewPaused=false;activeMode=selectedMode;reset();state='playing';sound.setScene('playing');ui.overlay.hidden=true;modePicker.hidden=true;ui.pause.disabled=false;canvas.focus();}
   async function requestStart(){
@@ -31,25 +34,30 @@
     // resume() happens synchronously inside this click, before any await.
     sound.startRequestedAt=sound.host.performance?.now()??Date.now();const ready=sound.unlock(),token=++startToken;
     state='preparing';ui.start.disabled=true;modeSelect.disabled=true;ui.start.textContent='Подготовка звука…';
-    if(sound.enabled&&sound.volume>0&&sound.available()&&!sound.failed){if(!sound.recordings.loaded)await sound.prepare();if(sound.context?.state!=='running')await ready;}
+    if(sound.enabled&&sound.volume>0&&sound.available()&&!sound.failed){
+      const work=(async()=>{if(!sound.recordings.loaded)await sound.prepare();if(sound.context?.state!=='running')await ready;})();
+      // Mobile page: the round starts within a fixed budget; recordings attach later if still loading.
+      const budget=sound.startBudgetMs;
+      if(Number.isFinite(budget))await Promise.race([work,new Promise(resolve=>setTimeout(resolve,budget))]);else await work;
+    }
     if(token!==startToken||state!=='preparing')return;
     ui.start.disabled=false;modeSelect.disabled=false;start();sound.beginRound();
     if(document.hidden||!sound.pageActive)overlay('paused');
   }
-  function overlay(kind){sound.setScene(kind);if(kind==='won'||kind==='lost')sound.play(kind);state=kind;keys.clear();ui.overlay.hidden=false;ui.intro.hidden=true;ui.restart.hidden=kind!=='paused';ui.pause.disabled=true;
+  function overlay(kind){sound.setScene(kind);if(kind==='won'||kind==='lost')sound.play(kind);state=kind;clearInput();ui.overlay.hidden=false;ui.intro.hidden=true;ui.restart.hidden=kind!=='paused';ui.pause.disabled=true;
     modePicker.hidden=true;
     ui.eyebrow.textContent=kind==='paused'?'ГОРОД ПОДОЖДЁТ':kind==='won'?'НОЧЬ ОТСТУПИЛА':'СВЕТ ЕЩЁ МОЖНО ВЕРНУТЬ';
     ui.title.textContent=kind==='paused'?'Тихая пауза':kind==='won'?'Город снова светит':'Последняя искра';
     ui.description.textContent=kind==='paused'?'Сделайте вдох. Ваше время и весь город замерли.':kind==='won'?`Вы зажгли все семь фонарей за ${Math.ceil(120-remaining)} сек. В окнах снова появился свет.`:player.lives===0?'Тени настигли вас. Держитесь ближе к свету и используйте вспышку, когда они подойдут.':'Время истекло. Собирайте искры по пути и зажигайте фонари, чтобы открыть безопасные убежища.';
-    ui.start.textContent=kind==='paused'?'Продолжить →':'Попробовать снова →';ui.tip.textContent=kind==='won'?'Даже одна искра может изменить ночь.':'WASD — движение · E — фонарь · Пробел — вспышка';ui.hint.hidden=true;
+    ui.start.textContent=kind==='paused'?'Продолжить →':'Попробовать снова →';ui.tip.textContent=kind==='won'?'Даже одна искра может изменить ночь.':touchUI?'Джойстик — движение · Зажечь · Вспышка':'WASD — движение · E — фонарь · Пробел — вспышка';ui.hint.hidden=true;
   }
-  function resume(){previewPaused=false;state='playing';sound.setScene('playing');ui.overlay.hidden=true;ui.pause.disabled=false;keys.clear();}
+  function resume(){previewPaused=false;state='playing';sound.setScene('playing');ui.overlay.hidden=true;ui.pause.disabled=false;clearInput();}
   sound.onPreviewRequest=()=>{if(state==='playing'){previewPaused=true;overlay('paused');}};
   sound.onPreviewEnd=()=>{if(previewPaused&&state==='paused'&&!document.hidden){previewPaused=false;resume();}else previewPaused=false;};
   ui.start.onclick=()=>{if(state==='preparing')return;if(state==='paused'){sound.stopDiagnostic();sound.recordings.stopAll();previewPaused=false;void sound.unlock();resume();}else if(state==='menu')return requestStart();else showMenu();};ui.restart.onclick=showMenu;ui.pause.onclick=()=>{if(state==='playing')overlay('paused');};
   const movement=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight'];
   window.addEventListener('keydown',e=>{if([...movement,'Space','KeyE','Escape'].includes(e.code))e.preventDefault();if(e.code==='Escape'&&!e.repeat){if(state==='playing')overlay('paused');else if(state==='paused')resume();return;}if(state!=='playing')return;keys.add(e.code);if(!e.repeat&&e.code==='KeyE')light();if(!e.repeat&&e.code==='Space')flash();});
-  window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();if(state==='playing')overlay('paused');});document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='playing')overlay('paused');});
+  window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{clearInput();if(state==='playing')overlay('paused');});document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='playing')overlay('paused');});
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   function blocked(x,y,r){return x<r||x>W-r||y<r||y>H-r||buildings.some(b=>Math.hypot(x-Math.max(b.x,Math.min(x,b.x+b.w)),y-Math.max(b.y,Math.min(y,b.y+b.h)))<r);}
   function safeAt(x,y){return lamps.some(l=>l.lit&&Math.hypot(x-l.x,y-l.y)<SAFE);}
@@ -80,12 +88,12 @@
     if(dangerCooldown===0){dangerPulse=.45;dangerCooldown=2.5;}
   }
   function updateEffects(dt){burst=Math.max(0,burst-dt);hitFlash=Math.max(0,hitFlash-dt);for(const l of lamps)l.ignition=Math.max(0,l.ignition-dt);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;}particles=particles.filter(p=>p.life>0);}
-  function update(dt){elapsed+=dt;remaining=Math.max(0,remaining-dt);cooldown=Math.max(0,cooldown-dt);invulnerable=Math.max(0,invulnerable-dt);updateEffects(dt);let dx=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),dy=Number(keys.has('KeyS')||keys.has('ArrowDown'))-Number(keys.has('KeyW')||keys.has('ArrowUp'));const len=Math.hypot(dx,dy)||1;const oldX=player.x,oldY=player.y;move(player,dx/len*SPEED*dt,dy/len*SPEED*dt);sound.walk(Math.hypot(player.x-oldX,player.y-oldY));
+  function update(dt){elapsed+=dt;remaining=Math.max(0,remaining-dt);cooldown=Math.max(0,cooldown-dt);invulnerable=Math.max(0,invulnerable-dt);updateEffects(dt);let dx=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),dy=Number(keys.has('KeyS')||keys.has('ArrowDown'))-Number(keys.has('KeyW')||keys.has('ArrowUp'));if(!dx&&!dy){dx=touchAxis.x;dy=touchAxis.y;}const len=Math.hypot(dx,dy)||1;const oldX=player.x,oldY=player.y;move(player,dx/len*SPEED*dt,dy/len*SPEED*dt);sound.walk(Math.hypot(player.x-oldX,player.y-oldY));
     for(const s of sparks)if(!s.taken&&distance(s,player)<25){s.taken=true;player.bag++;sound.play('spark');emit(s.x,s.y,12,'#edc878');}
     navClock-=dt;if(navClock<=0){navigation();navClock=.25;}
     for(const e of enemies){if(safeAt(e.x,e.y)){const l=lamps.find(l=>l.lit&&distance(e,l)<SAFE);expel(e,l);}let tx=player.x,ty=player.y;const ix=Math.floor(e.x/CELL),iy=Math.floor(e.y/CELL);let best=field[iy*COLS+ix];if(distance(e,player)>45){for(const [ox,oy] of [[0,1],[1,0],[-1,0],[0,-1]]){const nx=ix+ox,ny=iy+oy;if(nx<0||nx>=COLS||ny<0||ny>=ROWS)continue;const f=field[ny*COLS+nx];if(f>=0&&(best<0||f<best)){best=f;tx=nx*CELL+10;ty=ny*CELL+10;}}}const a=Math.atan2(ty-e.y,tx-e.x),speed=shadowSpeed(elapsed);move(e,(Math.cos(a)*speed+e.vx)*dt,(Math.sin(a)*speed+e.vy)*dt,true);e.vx*=Math.exp(-5*dt);e.vy*=Math.exp(-5*dt);if(distance(e,player)<25&&invulnerable<=0&&!safeAt(player.x,player.y)){player.lives--;sound.play('hit');invulnerable=settings().immunity;hitFlash=HIT_FLASH_SECONDS;emit(player.x,player.y,28,'#ffd6c2');e.vx=-Math.cos(a)*260;e.vy=-Math.sin(a)*260;if(player.lives===0){overlay('lost');break;}}}
     updateDanger(dt);if(remaining<=0&&state==='playing')overlay('lost');updateSoundThreat();updateUI();}
-  function updateUI(){const t=Math.ceil(remaining);ui.time.textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;ui.time.classList.toggle('urgent',remaining<25);ui.lives.textContent='♥ '.repeat(player.lives)+'♡ '.repeat(settings().lives-player.lives);ui.sparks.textContent='✦ '+player.bag;ui.lamps.innerHTML=lamps.filter(l=>l.lit).length+' <em>/ 7</em>';ui.flashLabel.textContent=cooldown>0?`ЕЩЁ ${cooldown.toFixed(1)} СЕК`:'ПРОБЕЛ · ГОТОВА';ui.flashBar.style.width=(1-cooldown/8)*100+'%';const l=lamps.find(l=>!l.lit&&distance(l,player)<52);ui.hint.hidden=state!=='playing'||!l;ui.hint.textContent=player.bag?'E · Зажечь фонарь · 1 искра':'Нужна искра · ищите золотые огоньки';}
+  function updateUI(){const t=Math.ceil(remaining);ui.time.textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;ui.time.classList.toggle('urgent',remaining<25);ui.lives.textContent='♥ '.repeat(player.lives)+'♡ '.repeat(settings().lives-player.lives);ui.sparks.textContent='✦ '+player.bag;ui.lamps.innerHTML=lamps.filter(l=>l.lit).length+' <em>/ 7</em>';ui.flashLabel.textContent=cooldown>0?`ЕЩЁ ${cooldown.toFixed(1)} СЕК`:touchUI?'ГОТОВА':'ПРОБЕЛ · ГОТОВА';ui.flashBar.style.width=(1-cooldown/8)*100+'%';const l=lamps.find(l=>!l.lit&&distance(l,player)<52);ui.hint.hidden=state!=='playing'||!l;ui.hint.textContent=player.bag?(touchUI?'Зажечь фонарь · 1 искра':'E · Зажечь фонарь · 1 искра'):'Нужна искра · ищите золотые огоньки';}
   function glow(x,y,r,color){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);}
   function circle(x,y,r,color){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();}
   function ring(x,y,r,color,width=2){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
@@ -137,7 +145,8 @@
   function frame(ms){const dt=Math.max(0,Math.min((ms-last)/1000,.04));last=ms;if(state==='playing')update(dt);else if(state==='won'||state==='lost')updateEffects(dt);if(state!=='paused')art.advance(dt,player,state==='playing');sound.tick();draw(art.clock);requestAnimationFrame(frame);}
   reset();showMenu();requestAnimationFrame(frame);
   // Read-only geometry plus actions for the local regression test runner.
-  if(typeof module!=='undefined'&&module.exports)module.exports={buildings,lampPositions,sparkPositions,blocked,start,update,light,flash,overlay,resume,keys,sound,updateSoundThreat,shadowSpeed,heroOpacity,showMenu,selectMode,get:()=>({state,player,lamps,sparks,enemies,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,selectedMode,activeMode,dangerPulse,dangerCooldown})};
+  const api={buildings,lampPositions,sparkPositions,blocked,start,update,light,flash,overlay,resume,keys,sound,updateSoundThreat,shadowSpeed,heroOpacity,showMenu,selectMode,setAxis,touchAxis,requestStart,get:()=>({state,player,lamps,sparks,enemies,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,selectedMode,activeMode,dangerPulse,dangerCooldown})};
+  if(typeof module!=='undefined'&&module.exports)module.exports=api;else window.lanternGame=api;
 })();
 
 

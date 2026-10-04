@@ -1,0 +1,68 @@
+/* Mobile presentation for touch-only devices (html.mobile is set by the inline detector in index.html).
+   Desktop rules in style.css are untouched; everything here is scoped to html.mobile. */
+html.mobile{--hud:34px;--sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px);--sal:env(safe-area-inset-left,0px);--sar:env(safe-area-inset-right,0px);height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html.mobile body{position:fixed;inset:0;width:100%;height:100%;margin:0;overflow:hidden;overscroll-behavior:none;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+html.mobile main#gameShell{max-width:none;width:100%;height:100%;margin:0;padding:0}
+html.mobile header,html.mobile .below,html.mobile footer,html.mobile .map-label,html.mobile .flash-status,html.mobile #displayNotice,html.mobile #soundStatus,html.mobile .audio-preview{display:none!important}
+html.mobile #loadNotice:not(:empty){top:calc(var(--hud) + var(--sat) + 6px);font-size:12px}
+/* Compact HUD strip along the top edge, inside the safe area. */
+html.mobile .dashboard{position:fixed;top:0;left:0;right:0;z-index:5;height:calc(var(--hud) + var(--sat));padding:var(--sat) calc(12px + var(--sar)) 0 calc(12px + var(--sal));gap:clamp(8px,2.2vw,22px);background:#080f1be6;border:0;border-bottom:1px solid #1d2a3d;border-radius:0;flex-wrap:nowrap;align-items:center}
+html.mobile .dashboard>div{display:flex;align-items:baseline;gap:5px;white-space:nowrap}
+html.mobile .dashboard small{margin:0;font-size:7px;letter-spacing:1.2px}
+html.mobile .dashboard strong{font-size:15px;line-height:1}
+html.mobile .dashboard #lives{font-size:12px;letter-spacing:-1px}
+html.mobile .dashboard em{font-size:11px}
+html.mobile #fullscreen,html.mobile #pause{padding:5px 10px;font-size:11px;min-height:26px;line-height:1}
+html.mobile #fullscreen{margin-left:auto}html.mobile #fullscreen[hidden]+#pause,html.mobile #fullscreen:disabled+#pause{margin-left:auto}
+html.mobile #fullscreen:disabled{display:none}
+/* The play field takes everything below the HUD; the canvas keeps its 1200×760 aspect with object-fit. */
+html.mobile .stage{position:fixed;top:calc(var(--hud) + var(--sat));left:0;right:0;bottom:0;border:0;background:#080f1b;aspect-ratio:auto!important;min-height:0!important;overflow:hidden}
+html.mobile canvas{display:block;width:100%;height:100%;object-fit:contain}
+html.mobile .hint{bottom:calc(8px + var(--sab));font-size:12px;padding:7px 12px}
+/* Touch controls float over the letterbox bands beside the map. */
+html.mobile .touch-controls{position:fixed;top:calc(var(--hud) + var(--sat));left:0;right:0;bottom:0;z-index:4;pointer-events:none}
+html.mobile .stick-zone{position:absolute;left:0;top:0;bottom:0;width:46%;pointer-events:auto;touch-action:none}
+html.mobile .stick-base{position:absolute;width:96px;height:96px;margin:-48px 0 0 -48px;border-radius:50%;border:1.5px solid #e9be6966;background:radial-gradient(circle,#101c30cc 0%,#101c3080 60%,#101c3000 100%);box-shadow:0 0 24px #e9be6922}
+html.mobile .stick-knob{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#f7d98a,#c99a44 70%,#8f6a2a);box-shadow:0 2px 10px #0009;transition:transform .02s linear}
+html.mobile .touch-actions{position:absolute;right:calc(14px + var(--sar));bottom:calc(16px + var(--sab));display:flex;flex-direction:column;align-items:flex-end;gap:14px;pointer-events:auto}
+html.mobile .touch-button{position:relative;width:64px;height:64px;border-radius:50%;border:1.5px solid #e9be69aa;background:#101c30d9;color:#f1d598;font:inherit;font-size:10px;letter-spacing:.6px;font-weight:600;text-transform:uppercase;padding:0;touch-action:none;box-shadow:0 3px 14px #0009,0 0 18px #e9be6922;transition:transform .08s,background .12s}
+html.mobile .touch-button span{position:relative;z-index:1}
+html.mobile .touch-button.ignite{width:60px;height:60px;margin-right:2px}
+html.mobile .touch-button.ignite.ready{background:#e9be69;color:#292318;border-color:#f4d799;box-shadow:0 0 26px #edc578aa}
+html.mobile .touch-button.pressed{transform:scale(.92);background:#1a2a44}
+html.mobile .touch-button.flash i{position:absolute;inset:-2px;border-radius:50%;background:conic-gradient(#edc578 calc(var(--cooldown,1) * 360deg),#2b3749 0);-webkit-mask:radial-gradient(farthest-side,#0000 calc(100% - 4px),#000 calc(100% - 3px));mask:radial-gradient(farthest-side,#0000 calc(100% - 4px),#000 calc(100% - 3px));opacity:0;transition:opacity .2s}
+html.mobile .touch-button.flash.cooling{color:#8c98ad;border-color:#465267}
+html.mobile .touch-button.flash.cooling i{opacity:1}
+/* Overlay card compacted for a landscape phone; it may scroll if a screen is unusually short. */
+html.mobile .overlay{touch-action:pan-y;align-items:safe center}
+html.mobile .card{width:min(520px,94%);padding:4px 10px}
+html.mobile .sun{display:none}
+html.mobile .eyebrow{font-size:7px}
+html.mobile h1{font-size:clamp(24px,6vh,34px);margin:4px 0 8px}html.mobile:not(.portrait) h1 br{display:none}html.mobile:not(.portrait) h1 span{margin-left:.25em}
+html.mobile.portrait #fullscreen{display:none}html.mobile.portrait .dashboard{gap:10px;padding-left:calc(10px + var(--sal));padding-right:calc(10px + var(--sar))}html.mobile.portrait .dashboard small{display:none}html.mobile.portrait .dashboard>div{gap:0}
+html.mobile .card p{font-size:11.5px;line-height:1.4;max-width:400px}
+html.mobile .intro{margin:8px 0;gap:18px}html.mobile .intro b{font-size:15px}
+html.mobile .mode-picker{margin-bottom:8px}html.mobile .mode-picker label{margin-bottom:4px}
+html.mobile .mode-picker select{font-size:16px;padding:8px 10px;min-height:44px}
+html.mobile .card .mode-picker p{margin:5px 0 2px}
+html.mobile .primary{padding:12px 18px;min-height:44px;font-size:14px}
+html.mobile .secondary{min-height:32px;margin-top:2px;font-size:12px}
+html.mobile .card .tip{margin-top:4px}
+html.mobile .rotate-tip{font-size:11px;color:#e3c78f;margin-top:8px}
+html.mobile .touch-sound-panel .audio-controls{display:grid;grid-template-columns:auto minmax(70px,1fr) 34px auto minmax(70px,1fr) 34px;gap:8px 8px;align-items:center;width:100%;max-width:480px;margin:6px auto 0;text-align:left;font-size:11px}
+html.mobile .touch-sound-panel .audio-controls button{grid-column:1/4;justify-self:start;min-height:36px;padding:6px 10px;font-size:12px;margin:0}
+html.mobile.portrait .touch-sound-panel .audio-controls{grid-template-columns:auto minmax(80px,1fr) 36px;max-width:320px}html.mobile.portrait .touch-sound-panel .audio-controls button{grid-column:1/-1}
+html.mobile .touch-sound-panel .audio-controls label{font-size:10px;color:#a4b1c5}
+html.mobile .touch-sound-panel .audio-controls input{width:100%;height:28px;accent-color:#edc578}
+html.mobile .touch-sound-panel .audio-controls output{font-size:10px;width:auto}
+/* Portrait: the menu stays usable, the round waits for landscape. */
+html.mobile .rotate-notice{position:fixed;inset:0;z-index:30;display:grid;place-items:center;align-content:center;gap:10px;background:#080f1bf2;color:#e9dfc4;text-align:center;padding:24px}
+html.mobile .rotate-notice .phone{font-size:56px;color:#e9be69;display:block;animation:lantern-rotate 2.4s ease-in-out infinite}
+html.mobile .rotate-notice b{font-family:LocalSerif,Georgia,serif;font-weight:400;font-size:26px}
+html.mobile .rotate-notice small{font-size:12px;color:#8492a8;letter-spacing:.5px}
+@keyframes lantern-rotate{0%,20%{transform:rotate(0)}50%,70%{transform:rotate(90deg)}100%{transform:rotate(90deg)}}
+html.mobile.portrait .touch-controls{display:none}
+html.mobile.portrait .card{width:min(450px,92%)}html.mobile.portrait h1{font-size:clamp(30px,9vw,44px)}
+/* Tablets and wide screens: the map is wide enough that the thumbs rest over its bottom corners instead. */
+@media (max-aspect-ratio:7/4) and (min-height:600px){html.mobile .touch-actions{bottom:calc(28px + var(--sab))}}
+@media (hover:hover) and (pointer:fine){html.mobile .touch-button:hover{background:#1a2a44}}

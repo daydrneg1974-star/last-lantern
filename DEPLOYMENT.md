@@ -51,3 +51,7 @@ $gitExe = 'git'
 - Ограничения Pages: https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits
 - Источник публикации: https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
 
+
+## v1.0.1 — мобильная версия
+
+Публикуется теми же настройками Pages (main, корень). К составу добавляются mobile.css, mobile.js, папка assets/audio/mobile (около 7 МБ: AAC-копии и Ogg-оригиналы пяти записей), package.json и папка tests (только для проверок, игре не нужны). audio-data.js и style.css не изменены. Перед слиянием в main требуется проверка на физическом iPhone по чек-листу из отчёта v1.0.1.

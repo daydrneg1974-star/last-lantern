@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   class LanternSound {
-    constructor(host={}){this.host=host;this.context=null;this.enabled=true;this.volume=.35;this.effectsVolume=.7;this.musicVolume=.55;this.scene='menu';this.pageActive=true;this.voices=new Set();this.musicVoices=new Set();this.lanterns=0;this.musicStage=0;this.musicBeat=0;this.nextMusicTime=null;this.steps=0;this.pending=null;this.failed=false;this.onChange=()=>{};this.threat=0;this.heartbeat=0;this.nextHeartbeat=null;this.lastAttack=-Infinity;this.duckUntil=0;this.mixDuck=1;this.threatVoices=new Set();const Recordings=typeof module!=='undefined'&&module.exports?require('./recordings.js'):host.LanternRecordings;this.recordings=new Recordings(this,host.LANTERN_AUDIO_PACK);}
+    constructor(host={}){this.host=host;this.context=null;this.enabled=true;this.volume=.35;this.effectsVolume=.7;this.musicVolume=.55;this.scene='menu';this.pageActive=true;this.voices=new Set();this.musicVoices=new Set();this.lanterns=0;this.musicStage=0;this.musicBeat=0;this.nextMusicTime=null;this.steps=0;this.pending=null;this.failed=false;this.onChange=()=>{};this.threat=0;this.heartbeat=0;this.nextHeartbeat=null;this.lastAttack=-Infinity;this.duckUntil=0;this.mixDuck=1;this.threatVoices=new Set();this.options=host.LANTERN_AUDIO_OPTIONS||{};this.startBudgetMs=Number.isFinite(this.options.startBudgetMs)?this.options.startBudgetMs:undefined;this.resumeStalls=0;const Recordings=typeof module!=='undefined'&&module.exports?require('./recordings.js'):host.LanternRecordings;this.recordings=new Recordings(this,host.LANTERN_AUDIO_PACK);}
     available(){return Boolean(this.host.AudioContext||this.host.webkitAudioContext);}
     async prepare(){
       if(!this.available()||this.failed)return;
@@ -28,18 +28,33 @@
     apply(){if(this.master){this.ramp(this.master.gain,this.enabled&&this.pageActive?this.volume:0);this.ramp(this.ambient.gain,this.scene==='playing'||this.diagnostic?1:0,.15);this.ramp(this.effects.gain,this.effectsVolume);this.ramp(this.music.gain,this.musicVolume,.12);this.updateMix();}this.onChange();}
     async unlock(){
       if(!this.enabled||!this.available()||this.failed)return false;
-      if(this.pending)return this.pending;
+      if(this.pending)return this.pending.then(()=>this.context?.state==='running');
       try{
         if(!this.context)this.build();
         // Called directly from a trusted pointer/key/click handler, never from animation.
         if(this.context.state!=='running'){
-          this.pending=Promise.resolve(this.context.resume()).then(()=>true,()=>false);
-          await this.pending;this.pending=null;
+          // iOS can leave resume() pending forever (interrupted session, background return).
+          // Bound the wait so a stalled promise never blocks the round or later gestures.
+          this.applySession();const c=this.context,limit=Number.isFinite(this.options.resumeTimeoutMs)?this.options.resumeTimeoutMs:3000;
+          const attempt=this.resumeStalls>0&&c.state==='interrupted'&&typeof c.suspend==='function'?Promise.resolve(c.suspend()).catch(()=>{}).then(()=>c.resume()):c.resume();
+          let timer;const pending=this.pending=Promise.race([Promise.resolve(attempt).then(()=>true,()=>false),new Promise(resolve=>{timer=this.host.setTimeout?this.host.setTimeout(()=>resolve('stalled'),limit):undefined;})]);
+          const result=await pending;if(timer!==undefined)this.host.clearTimeout(timer);if(this.pending===pending)this.pending=null;
+          if(result==='stalled')this.resumeStalls++;else this.resumeStalls=0;
         }
         this.apply();void this.recordings.load();return this.context.state==='running';
       }catch{this.failed=true;this.pending=null;this.onChange();return false;}
     }
+    // W3C Audio Session (Safari 16.4+): 'playback' keeps game audio audible with the ring/silent
+    // switch on and survives lock-screen interruptions. Other browsers lack the API and skip this.
+    applySession(){
+      const session=this.host.navigator?.audioSession;if(!session||!this.options.playbackSession)return;
+      try{const wanted=this.enabled&&this.volume>0?'playback':'auto';if(session.type!==wanted)session.type=wanted;}catch{}
+    }
+    // Page returned to the foreground: a suspended or interrupted context is resumed without a gesture
+    // where the browser allows it. The next real tap repeats this through unlock().
+    wake(){const c=this.context;if(!c||!this.enabled||this.failed||c.state==='running'||c.state==='closed')return;this.applySession();try{Promise.resolve(c.resume()).then(()=>this.safeApply(),()=>{});}catch{}}
     build(){
+      this.applySession();
       const C=this.host.AudioContext||this.host.webkitAudioContext,c=this.context=new C();
       this.master=c.createGain();this.master.gain.value=0;
       this.compressor=c.createDynamicsCompressor();this.compressor.threshold.value=-14;this.compressor.knee.value=12;this.compressor.ratio.value=8;this.compressor.attack.value=.003;this.compressor.release.value=.22;
@@ -64,7 +79,7 @@
       this.growlCurve=new Float32Array(512);for(let i=0;i<512;i++)this.growlCurve[i]=Math.tanh((i/511*2-1)*2.5)*.75;
       c.onstatechange=()=>this.onChange();
     }
-    setEnabled(value){if(!value)this.stopDiagnostic();this.enabled=Boolean(value);this.steps=0;if(!this.enabled){this.clear();this.haltMusic();this.resetThreat();this.recordings.stopAll();}this.safeApply();}
+    setEnabled(value){if(!value)this.stopDiagnostic();this.enabled=Boolean(value);this.steps=0;if(!this.enabled){this.clear();this.haltMusic();this.resetThreat();this.recordings.stopAll();}this.applySession();this.safeApply();}
     setVolume(value){if(!Number.isFinite(value))return;this.volume=Math.max(0,Math.min(1,value));if(!this.volume){this.clear();this.haltMusic();this.resetThreat();this.recordings.stopAll();}this.safeApply();}
     setEffectsVolume(value){if(!Number.isFinite(value))return;this.effectsVolume=Math.max(0,Math.min(1,value));if(!this.effectsVolume){this.clear();this.resetThreat();}this.safeApply();}
     setMusicVolume(value){if(!Number.isFinite(value))return;this.musicVolume=Math.max(0,Math.min(1,value));if(!this.musicVolume){this.haltMusic();this.recordings.stopMusic();if(this.recordings.previewVoice&&['dark','light'].includes(this.recordings.previewVoice.key))this.recordings.stopAll();}this.safeApply();}
@@ -202,7 +217,7 @@
     // Preserve native slider keyboard controls; other game controls remain unchanged.
     for(const control of sliders)control.onkeydown=e=>{if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','Space'].includes(e.code))e.stopPropagation();};
     host.addEventListener('blur',()=>sound.setPageActive(false));host.addEventListener('focus',()=>sound.setPageActive(!doc.hidden));
-    doc.addEventListener('visibilitychange',()=>sound.setPageActive(!doc.hidden));refresh();
+    doc.addEventListener('visibilitychange',()=>{sound.setPageActive(!doc.hidden);if(!doc.hidden)void sound.wake();});refresh();
   }
   if(typeof module!=='undefined'&&module.exports)module.exports={LanternSound,setupSound};else{window.lanternSound=new LanternSound(window);setupSound(window.lanternSound,document,window);void window.lanternSound.prepare();}
 })();

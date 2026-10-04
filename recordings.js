@@ -2,25 +2,40 @@
 (() => {
   'use strict';
   class LanternRecordings {
-    constructor(sound,pack){this.sound=sound;this.pack=pack||{};this.buffers={};this.gains={};this.failed=new Set();this.loading=null;this.loaded=false;this.musicVoice=null;this.musicKey=null;this.voices=new Set();this.nextCreature=0;this.attackIndex=0;this.previewVoice=null;this.previewUntil=0;this.endUntil=0;this.previewToken=0;}
+    constructor(sound,pack){this.sound=sound;this.pack=pack||{};this.streaming=Object.values(this.pack).some(item=>item&&(item.url||item.urls));this.buffers={};this.gains={};this.failed=new Set();this.loading=null;this.loaded=false;this.musicVoice=null;this.musicKey=null;this.voices=new Set();this.nextCreature=0;this.attackIndex=0;this.previewVoice=null;this.previewUntil=0;this.endUntil=0;this.previewToken=0;}
     load(){
       if(this.loading)return this.loading;
       const c=this.sound.context;
       if(!c||typeof c.decodeAudioData!=='function'){this.loaded=true;return Promise.resolve();}
       this.metrics={};this.offsets={};const clock=()=>this.sound.host.performance?.now()??Date.now();
       this.loading=Promise.all(['dark','light','near','attack1','attack2'].map(async key=>{
-        const item=this.pack[key];if(!item?.data){this.failed.add(key);return;}
-        const began=clock();try{const binary=this.sound.host.atob(item.data),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-          const decodedAt=clock();
-          const decode=c.decodeAudioData(bytes.buffer);let timeout;
-          const buffer=await (this.sound.host.setTimeout?Promise.race([decode,new Promise((_,reject)=>{timeout=this.sound.host.setTimeout(()=>reject(Error('Decode timeout')),10000);})]).finally(()=>this.sound.host.clearTimeout(timeout)):decode);
+        const item=this.pack[key],urls=item?.urls||(item?.url?[item.url]:[]);if(!item?.data&&!urls.length){this.failed.add(key);return;}
+        const began=clock();try{let decodedAt,buffer;
+          const decodeBytes=bytes=>{const decode=c.decodeAudioData(bytes.buffer);let timeout;
+            return this.sound.host.setTimeout?Promise.race([decode,new Promise((_,reject)=>{timeout=this.sound.host.setTimeout(()=>reject(Error('Decode timeout')),10000);})]).finally(()=>this.sound.host.clearTimeout(timeout)):decode;};
+          if(item.data){const binary=this.sound.host.atob(item.data),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);decodedAt=clock();buffer=await decodeBytes(bytes);}
+          else{
+            // Candidates in order (AAC copy first, then an original where its size allows); the first that fetches and decodes wins.
+            let lastError;for(const url of urls){try{const bytes=new Uint8Array(await this.fetchBytes(url,item.timeout));decodedAt=clock();buffer=await decodeBytes(bytes);this.metrics[key]={source:url};break;}catch(error){lastError=error;buffer=undefined;}}
+            if(!buffer)throw lastError||Error('No source');
+          }
           if(!Number.isFinite(buffer.duration)||buffer.duration<=0)throw Error('Invalid recording');this.buffers[key]=buffer;
           let peak=0;for(let ch=0;ch<(buffer.numberOfChannels||0);ch++){const a=buffer.getChannelData(ch);for(let i=0;i<a.length;i++)peak=Math.max(peak,Math.abs(a[i]));}
           this.gains[key]=peak>.001?Math.min(2,.85/peak):1;
           if(['dark','light'].includes(key))this.offsets[key]=this.findOnset(buffer);
-          this.metrics[key]={unpackMs:Math.round(decodedAt-began),decodeAndAnalysisMs:Math.round(clock()-decodedAt),duration:buffer.duration,offset:this.offsets[key]||0};
+          this.metrics[key]={...(this.metrics[key]||{}),unpackMs:Math.round(decodedAt-began),decodeAndAnalysisMs:Math.round(clock()-decodedAt),duration:buffer.duration,offset:this.offsets[key]||0};
         }catch(error){this.failed.add(key);this.metrics[key]={error:String(error?.message||error)};}
       })).then(()=>{this.loaded=true;this.sound.onChange();});return this.loading;
+    }
+    // Separate small files for the mobile page. Each request has its own wall-clock limit;
+    // a stalled or failed file only marks its key as unavailable.
+    async fetchBytes(url,timeout=15000){
+      const host=this.sound.host;if(typeof host.fetch!=='function')throw Error('fetch unavailable');
+      const controller=host.AbortController?new host.AbortController():null;let timer;
+      if(host.setTimeout&&controller)timer=host.setTimeout(()=>controller.abort(),timeout);
+      try{const response=await host.fetch(url,controller?{signal:controller.signal}:undefined);if(!response.ok)throw Error(url+' HTTP '+response.status);
+        const buffer=await response.arrayBuffer();if(!buffer||!buffer.byteLength)throw Error(url+' empty');return buffer;}
+      finally{if(timer!==undefined)host.clearTimeout(timer);}
     }
     // Skip only a sustained quiet introduction, never seek on every frame.
     findOnset(buffer){
@@ -31,7 +46,7 @@
       const index=windows.findIndex((v,i)=>v>=threshold&&windows[i+1]>=threshold&&windows[i+2]>=threshold);
       return index>=5?Math.max(0,index*.1-.05):0;
     }
-    status(){if(!this.loaded&&Object.keys(this.pack).length)return 'Загрузка записей CC0…';const count=Object.keys(this.buffers).length;return count===5?'Записи CC0':count?'Часть записей недоступна — используется резерв':'Записи недоступны — резервный синтез';}
+    status(){if(!this.loaded&&Object.keys(this.pack).length&&!this.streaming)return 'Загрузка записей CC0…';const count=Object.keys(this.buffers).length;return count===5?'Записи CC0':count?'Часть записей недоступна — используется резерв':'Записи недоступны — резервный синтез';}
     start(key,bus,level,{loop=false,duration,offset=0,rate=1,attack=.08,preview=false,lowpass=0,presence=false,creature=false}={}){
       const b=this.buffers[key],c=this.sound.context;if(!b||this.voices.size>=12)return null;
       const source=c.createBufferSource(),gain=c.createGain();source.buffer=b;source.loop=loop;if(source.playbackRate)source.playbackRate.value=rate;
@@ -65,7 +80,7 @@
       if(s.lanterns>=7&&!s.diagnostic){this.stopMusic();return true;}
       if(!s.musicVolume){this.stopMusic();return false;}
       const key=s.lanterns>=3?'light':'dark';
-      if(!this.loaded&&Object.keys(this.pack).length)return true;
+      if(!this.loaded&&Object.keys(this.pack).length&&!this.streaming)return true;
       // A low drone alone is not a substitute for an audible musical part.
       if(!this.buffers[key]||!this.buffers.light){this.stopMusic();return false;}
       if(this.musicKey!==key){

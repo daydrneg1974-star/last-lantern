@@ -1,0 +1,11 @@
+{
+  "name": "last-lantern",
+  "version": "1.0.1",
+  "private": true,
+  "description": "Последний фонарь — браузерная 2D-игра. Статическая сборка без зависимостей.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node tests/browser/e2e.js",
+    "serve": "python3 -m http.server 8011 --bind 127.0.0.1"
+  }
+}
