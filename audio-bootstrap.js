@@ -23,7 +23,7 @@
       // AAC copy first; the CC0 original (Ogg) follows where its size allows. The 25 MiB WAV has no mobile original.
       const file=(name,timeout,original=true)=>({urls:['assets/audio/mobile/'+name+'.m4a'].concat(original?['assets/audio/mobile/'+name+'.ogg']:[]),file:name+'.m4a',timeout});
       window.LANTERN_AUDIO_PACK={dark:file('dark',20000),light:file('light',25000,false),near:file('near',8000),attack1:file('attack1',8000),attack2:file('attack2',8000)};
-      window.LANTERN_AUDIO_OPTIONS={startBudgetMs:2500,resumeTimeoutMs:2500,playbackSession:true,touchActivation:true};
+      window.LANTERN_AUDIO_OPTIONS={startBudgetMs:2500,resumeTimeoutMs:2500,playbackSession:true,touchActivation:true,suspendInBackground:true};
     }else{
       try{await load('assets/audio/audio-data.js');}catch{fallback=true;}
     }

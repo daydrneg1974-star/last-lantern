@@ -90,3 +90,19 @@ test('repeated rounds on the mobile pack keep one AudioContext and bounded live 
   for(let r=0;r<6;r++){game.start();for(let i=0;i<30;i++){sound.setThreat(60,false,0,false);sound.play('spark');sound.context.advance(.2);sound.tick();sound.context.endFinished();}game.showMenu();sound.context.advance(3);sound.context.endFinished();}
   assert.equal(FakeAudioContext.instances.length,n);assert.ok(sound.context.liveSources().length<60,'live: '+sound.context.liveSources().length);
 });
+
+test('background: hidden page suspends the context on the mobile page only; return resumes via wake/gesture',async()=>{
+  const {sound,doc}=mobileBoot();sound.options.suspendInBackground=true;await sound.unlock();
+  doc.hidden=true;doc.dispatch('visibilitychange');await settle();assert.equal(sound.context.state,'suspended');assert.equal(sound.context.suspendCalls,1);
+  doc.hidden=false;doc.dispatch('visibilitychange');await settle();assert.equal(sound.context.state,'running','wake resumed');
+  const d=boot();await d.sound.unlock();d.doc.hidden=true;d.doc.dispatch('visibilitychange');await settle();assert.equal(d.sound.context.state,'running','desktop unchanged');
+});
+test('resume resolves but iOS keeps "interrupted": counted as a stall, next gesture uses suspend+resume, third failure rebuilds the context',async()=>{
+  const {sound}=mobileBoot();sound.build();const first=sound.context;await sound.prepare();
+  first.resume=function(){this.resumeCalls++;return Promise.resolve();};first.state='interrupted'; // resolves without changing state
+  assert.equal(await sound.unlock(),false);assert.equal(sound.resumeStalls,1);
+  assert.equal(await sound.unlock(),false);assert.equal(first.suspendCalls,1,'second attempt tried suspend()+resume()');assert.equal(sound.resumeStalls,2);
+  assert.equal(await sound.unlock(),false);assert.notEqual(sound.context,first,'rebuilt on a fresh context');assert.equal(first.closeCalls,1);
+  assert.equal(sound.rebuilds,1);assert.equal(Object.keys(sound.recordings.buffers).length,5,'decoded recordings kept');
+  assert.equal(await sound.unlock(),true);assert.equal(sound.context.state,'running');
+});

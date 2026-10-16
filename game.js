@@ -144,10 +144,12 @@
     if(state==='playing'&&dangerPulse>0){ctx.save();ctx.globalAlpha=Math.sin(Math.PI*dangerPulse/.45);ring(player.x,player.y,31,'#e9ad81',2);ctx.font='bold 11px Segoe UI';ctx.textAlign='center';ctx.fillStyle='#ffd4af';ctx.fillText('ТЕНЬ РЯДОМ',player.x,Math.max(15,player.y-43));ctx.restore();}
     if(hitFlash>0){ctx.save();const fade=hitFlash/HIT_FLASH_SECONDS;ctx.fillStyle=`rgba(255,155,124,${fade*.16})`;ctx.fillRect(0,0,W,H);glow(player.x,player.y,90,`rgba(255,227,212,${fade*.8})`);ring(player.x,player.y,24+(1-fade)*40,`rgba(255,195,168,${fade})`,4);ctx.restore();}
   }
-  function frame(ms){const dt=Math.max(0,Math.min((ms-last)/1000,.04));last=ms;if(state==='playing')update(dt);else if(state==='won'||state==='lost')updateEffects(dt);if(state!=='paused')art.advance(dt,player,state==='playing');sound.tick();draw(art.clock);requestAnimationFrame(frame);}
+  // A slow frame is simulated in steps of at most 40 ms (same step as before) so real-time speed
+  // survives a 20-30 fps phone; a gap over 100 ms (tab switch, hitch) is still clamped as in v1.0.
+  function frame(ms){let dt=Math.max(0,Math.min((ms-last)/1000,.1));last=ms;while(dt>0){const step=Math.min(dt,.04);dt-=step;if(state==='playing')update(step);else if(state==='won'||state==='lost')updateEffects(step);if(state!=='playing'&&state!=='won'&&state!=='lost')break;}if(state!=='paused')art.advance(dt,player,state==='playing');sound.tick();draw(art.clock);requestAnimationFrame(frame);}
   reset();showMenu();requestAnimationFrame(frame);
   // Read-only geometry plus actions for the local regression test runner.
-  const api={buildings,lampPositions,sparkPositions,blocked,start,update,light,flash,overlay,resume,keys,sound,updateSoundThreat,shadowSpeed,heroOpacity,showMenu,selectMode,setAxis,touchAxis,requestStart,get:()=>({state,player,lamps,sparks,enemies,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,selectedMode,activeMode,dangerPulse,dangerCooldown})};
+  const api={buildings,lampPositions,sparkPositions,blocked,start,update,frame,light,flash,overlay,resume,keys,sound,updateSoundThreat,shadowSpeed,heroOpacity,showMenu,selectMode,setAxis,touchAxis,requestStart,get:()=>({state,player,lamps,sparks,enemies,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,selectedMode,activeMode,dangerPulse,dangerCooldown})};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else window.lanternGame=api;
 })();
 

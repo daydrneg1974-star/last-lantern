@@ -39,7 +39,10 @@
           const attempt=this.resumeStalls>0&&c.state==='interrupted'&&typeof c.suspend==='function'?Promise.resolve(c.suspend()).catch(()=>{}).then(()=>c.resume()):c.resume();
           let timer;const pending=this.pending=Promise.race([Promise.resolve(attempt).then(()=>true,()=>false),new Promise(resolve=>{timer=this.host.setTimeout?this.host.setTimeout(()=>resolve('stalled'),limit):undefined;})]);
           const result=await pending;if(timer!==undefined)this.host.clearTimeout(timer);if(this.pending===pending)this.pending=null;
-          if(result==='stalled')this.resumeStalls++;else this.resumeStalls=0;
+          // iOS may resolve resume() and still report 'interrupted'. Count that as a stall so the next
+          // gesture tries suspend()+resume(); after repeated failures the graph is rebuilt on a fresh context.
+          if(result==='stalled'||c.state!=='running'){this.resumeStalls++;if(this.resumeStalls>=3&&this.context===c)this.rebuild();}
+          else this.resumeStalls=0;
         }
         this.apply();void this.recordings.load();return this.context.state==='running';
       }catch{this.failed=true;this.pending=null;this.onChange();return false;}
@@ -53,6 +56,14 @@
     // Page returned to the foreground: a suspended or interrupted context is resumed without a gesture
     // where the browser allows it. The next real tap repeats this through unlock().
     wake(){const c=this.context;if(!c||!this.enabled||this.failed||c.state==='running'||c.state==='closed')return;this.applySession();try{Promise.resolve(c.resume()).then(()=>this.safeApply(),()=>{});}catch{}}
+    // Last resort after repeated failed resumes: a new AudioContext with the same decoded recordings.
+    rebuild(){
+      const old=this.context;if(!old)return;
+      try{this.recordings.stopAll();this.haltMusic();this.clear();this.resetThreat();}catch{}
+      try{if(typeof old.close==='function')void Promise.resolve(old.close()).catch(()=>{});}catch{}
+      this.context=null;this.pending=null;this.resumeStalls=0;this.rebuilds=(this.rebuilds||0)+1;this.recordings.musicKey=null;this.recordings.musicVoice=null;this.recordings.melodyVoice=null;this.recordings.voices.clear();this.voices.clear();this.musicVoices.clear();this.threatVoices.clear();
+      try{this.build();this.safeApply();}catch{this.failed=true;this.onChange();}
+    }
     build(){
       this.applySession();
       const C=this.host.AudioContext||this.host.webkitAudioContext,c=this.context=new C();
@@ -83,7 +94,10 @@
     setVolume(value){if(!Number.isFinite(value))return;this.volume=Math.max(0,Math.min(1,value));if(!this.volume){this.clear();this.haltMusic();this.resetThreat();this.recordings.stopAll();}this.safeApply();}
     setEffectsVolume(value){if(!Number.isFinite(value))return;this.effectsVolume=Math.max(0,Math.min(1,value));if(!this.effectsVolume){this.clear();this.resetThreat();}this.safeApply();}
     setMusicVolume(value){if(!Number.isFinite(value))return;this.musicVolume=Math.max(0,Math.min(1,value));if(!this.musicVolume){this.haltMusic();this.recordings.stopMusic();if(this.recordings.previewVoice&&['dark','light'].includes(this.recordings.previewVoice.key))this.recordings.stopAll();}this.safeApply();}
-    setPageActive(value){if(!value)this.stopDiagnostic();this.pageActive=value;if(!value){this.clear();this.haltMusic();this.resetThreat();this.recordings.stopAll();}this.safeApply();}
+    setPageActive(value){if(!value)this.stopDiagnostic();this.pageActive=value;if(!value){this.clear();this.haltMusic();this.resetThreat();this.recordings.stopAll();}this.safeApply();
+      // Mobile page: release the audio session while hidden (no lock-screen player, clean return);
+      // the next tap resumes through unlock(). Desktop keeps the v1.0 behaviour.
+      if(!value&&this.options.suspendInBackground&&this.context?.state==='running'){try{void Promise.resolve(this.context.suspend()).catch(()=>{});}catch{}}}
     setScene(scene){this.stopDiagnostic();const previous=this.scene;this.scene=scene;this.steps=0;this.clear(scene==='lost');if(scene!==previous){this.recordings.stopAll(scene==='lost');this.resetThreat();this.haltMusic();if(scene==='menu'){this.lanterns=0;this.musicStage=0;this.musicBeat=0;}else if(scene==='playing'&&previous!=='paused'){this.lanterns=0;this.musicStage=0;this.musicBeat=0;}}this.safeApply();if(scene!==previous&&(scene==='won'||scene==='lost'))this.ending(scene);}
     setLanternCount(count){
       if(!Number.isFinite(count))return;this.lanterns=Math.max(0,Math.min(7,Math.floor(count)));

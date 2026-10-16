@@ -47,26 +47,29 @@ async function touchDrag(page,from,to,steps=8,hold=300){
     check('mobile: action buttons outside the drawn map',geo.flash[0]>=drawn[2]-2&&geo.ignite[0]>=drawn[2]-2,{drawn,flash:geo.flash,ignite:geo.ignite});
     check('mobile: buttons inside safe area (59px)',geo.flash[2]<=844-59&&geo.ignite[2]<=844-59&&geo.flash[3]<=390-21,geo.flash);
     check('mobile: touch targets >= 44px',geo.flash[2]-geo.flash[0]>=44&&geo.ignite[2]-geo.ignite[0]>=44);
+    const base=await page.evaluate(()=>{const b=document.getElementById('stickBase').getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2,left:b.left,bottom:b.bottom};});
+    check('mobile: fixed joystick base sits in the left band inside the safe area, off the edge',base.left>=59+20&&base.bottom<=390-21&&base.x<140,base);
     const before=await state(page);
-    const drag=await touchDrag(page,{x:110,y:250},{x:150,y:250},6,500);
+    const drag=await touchDrag(page,{x:base.x+10,y:base.y},{x:base.x+40,y:base.y},6,500);
     const mid=await state(page);
     check('mobile: joystick drag right moves hero',mid.player.x>before.player.x+30,{from:Math.round(before.player.x),to:Math.round(mid.player.x)});
-    check('mobile: joystick base shown at touch point',await page.evaluate(()=>!document.getElementById('stickBase').hidden));
+    check('mobile: joystick base highlighted while held',await page.evaluate(()=>document.getElementById('stickBase').classList.contains('active')));
     await page.screenshot({path:shot('e2e-m-play-stick.png')});
     await drag.end();await page.waitForTimeout(120);const after=await state(page);await page.waitForTimeout(200);const after2=await state(page);
     check('mobile: hero stops after release',Math.abs(after2.player.x-after.player.x)<1&&(await page.evaluate(()=>window.lanternGame.touchAxis.x===0)),{dx:after2.player.x-after.player.x});
+    {const hold=await touchDrag(page,{x:base.x+10,y:base.y},{x:base.x+40,y:base.y},3,2500);const held=await page.evaluate(()=>window.lanternMobile.stick!==null&&window.lanternGame.touchAxis.x>.9);await hold.end();check('mobile: a 2.5 s steady hold keeps the stick engaged',held,await page.evaluate(()=>window.lanternMobile.stats));}
     // diagonal 360°: up-left
-    const d2=await touchDrag(page,{x:150,y:300},{x:120,y:270},6,400);const diag=await state(page);await d2.end();
-    check('mobile: joystick diagonal (up-left) moves on both axes',diag.player.x<after2.player.x-5&&diag.player.y<after2.player.y-5,{dx:Math.round(diag.player.x-after2.player.x),dy:Math.round(diag.player.y-after2.player.y)});
+    const pre=await state(page);const d2=await touchDrag(page,{x:base.x,y:base.y},{x:base.x-30,y:base.y-30},6,400);const diag=await state(page);await d2.end();
+    check('mobile: joystick diagonal (up-left) moves on both axes',diag.player.x<pre.player.x-5&&diag.player.y<pre.player.y-5,{dx:Math.round(diag.player.x-pre.player.x),dy:Math.round(diag.player.y-pre.player.y)});
     // flash while moving: second touch point
     {
       const cdp=await page.context().newCDPSession(page);const tp=(x,y,id)=>({x,y,radiusX:8,radiusY:8,force:1,id});
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[tp(120,250,1)]});
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[tp(160,250,1)]});await page.waitForTimeout(100);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[tp(base.x+10,base.y,1)]});
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[tp(base.x+40,base.y,1)]});await page.waitForTimeout(100);
       const sx=(await state(page)).player.x;
-      const f=geo.flash;await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[tp(160,250,1),tp((f[0]+f[2])/2,(f[1]+f[3])/2,2)]});
+      const f=geo.flash;await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[tp(base.x+40,base.y,1),tp((f[0]+f[2])/2,(f[1]+f[3])/2,2)]});
       await page.waitForTimeout(60);const s2=await state(page);
-      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[tp(160,250,1)]});await page.waitForTimeout(150);const s3=await state(page);
+      await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[tp(base.x+40,base.y,1)]});await page.waitForTimeout(150);const s3=await state(page);
       check('mobile: flash fires while joystick held (multitouch)',s2.cooldown>7&&s3.player.x>sx+5,{cooldown:s2.cooldown,moved:Math.round(s3.player.x-sx)});
       await page.screenshot({path:shot('e2e-m-play-flash.png')});
       await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();
@@ -87,10 +90,10 @@ async function touchDrag(page,from,to,steps=8,hold=300){
     await page.tap('#start');await page.waitForTimeout(50);
     check('mobile: resume from pause card',(await state(page)).state==='playing');
     // background/visibility: emulate hidden → paused and axis reset
-    const d3=await touchDrag(page,{x:120,y:250},{x:160,y:250},4,100);
+    const d3=await touchDrag(page,{x:base.x+10,y:base.y},{x:base.x+40,y:base.y},4,100);
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>true});document.dispatchEvent(new Event('visibilitychange'));});
     await page.waitForTimeout(50);
-    check('mobile: hidden page pauses and clears joystick',(await state(page)).state==='paused'&&(await page.evaluate(()=>window.lanternGame.touchAxis.x===0&&document.getElementById('stickBase').hidden)));
+    check('mobile: hidden page pauses and clears joystick',(await state(page)).state==='paused'&&(await page.evaluate(()=>window.lanternGame.touchAxis.x===0&&!document.getElementById('stickBase').classList.contains('active'))));
     await d3.end().catch(()=>{});
     await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,get:()=>false});document.dispatchEvent(new Event('visibilitychange'));});
     // rotate to portrait while paused → rotate notice

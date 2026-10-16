@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="ru">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080f1b"><title>Последний фонарь</title>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080f1b"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="Фонарь"><title>Последний фонарь</title>
 <script>/* Touch-only devices get the mobile presentation; ?desktop or ?mobile forces a mode for checks. */(()=>{const q=location.search;const touch=matchMedia('(hover: none) and (pointer: coarse)').matches||(navigator.maxTouchPoints>0&&!matchMedia('(hover: hover)').matches);if(/[?&]mobile\b/.test(q)||(touch&&!/[?&]desktop\b/.test(q)))document.documentElement.classList.add('mobile');})();</script>
 <link rel="stylesheet" href="style.css"><link rel="stylesheet" href="mobile.css"></head>
 <body><div id="loadNotice" role="status">Подготовка звука… При медленном соединении будет доступен резервный звук.</div>
@@ -19,7 +19,7 @@
       <section class="card"><span class="eyebrow" id="eyebrow">МАЛЕНЬКАЯ ИСТОРИЯ В БОЛЬШОМ ГОРОДЕ</span><div class="sun">✧</div><h1 id="title">Последний<br><span>фонарь</span></h1><p id="description">Город погрузился во тьму. Соберите искры и зажгите семь фонарей, пока ночь не забрала последний свет.</p><div id="intro" class="intro"><span><b>7</b> фонарей</span><span><b>120</b> секунд</span><span><b>3</b> жизни</span></div><div id="modePicker" class="mode-picker"><label for="modeSelect">СЛОЖНОСТЬ</label><select id="modeSelect" aria-describedby="modeDetails"><option value="normal">Обычная игра</option><option value="training">Обучение</option></select><p id="modeDetails" aria-live="polite"></p><small>В обучении тени на 20% медленнее.</small></div><button class="primary" id="start" disabled>Подготовка звука… <span>→</span></button><button class="secondary" id="restart" hidden>Начать заново</button><button class="secondary" id="touchSound" hidden aria-expanded="false">♫ Звук и громкость</button><div id="touchSoundPanel" class="touch-sound-panel" hidden></div><p class="rotate-tip" id="rotateTip" hidden>Для игры поверните телефон горизонтально.</p><p class="tip" id="tip">Свет фонарей защищает от теней.</p></section>
     </div>
     <div id="touchControls" class="touch-controls" hidden aria-hidden="true">
-      <div id="stickZone" class="stick-zone"><div id="stickBase" class="stick-base" hidden><i id="stickKnob" class="stick-knob"></i></div></div>
+      <div id="stickZone" class="stick-zone"><div id="stickBase" class="stick-base"><i id="stickKnob" class="stick-knob"></i></div></div>
       <div class="touch-actions"><button type="button" id="touchFlash" class="touch-button flash"><span>Вспышка</span><i id="touchFlashRing"></i></button><button type="button" id="touchIgnite" class="touch-button ignite"><span>Зажечь</span></button></div>
     </div>
     <div id="rotateNotice" class="rotate-notice" hidden role="status"><span class="phone">▭</span><b>Поверните телефон</b><small>Игра идёт в горизонтальном положении</small></div>

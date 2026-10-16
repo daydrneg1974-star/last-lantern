@@ -40,9 +40,8 @@ test('restored difficulty: a browser-restored <select> value is honoured at load
   win.document.getElementById('modeSelect').value='bogus';assert.equal(b.game.get().selectedMode,'normal');
 });
 test('mobile: pagehide pauses a running round and releases the joystick',()=>{
-  const {win,doc,game}=boot(touchOpts);const zone=doc.getElementById('stickZone');zone._rect={left:0,top:34,width:388,height:356};zone.setPointerCapture=()=>{};zone.hasPointerCapture=()=>true;let released=0;zone.releasePointerCapture=()=>released++;
-  doc.getElementById('stickBase').hidden=true;const ac=doc.createElement('span');ac.setAttribute('class','audio-controls');doc.body.appendChild(ac);
+  const {win,doc,game}=boot(touchOpts);const zone=doc.getElementById('stickZone');zone._rect={left:20,top:34,width:368,height:356};zone.setPointerCapture=()=>{};zone.hasPointerCapture=()=>true;let released=0;zone.releasePointerCapture=()=>released++;doc.getElementById('stickBase')._rect={left:24,top:250,width:110,height:110};const ac=doc.createElement('span');ac.setAttribute('class','audio-controls');doc.body.appendChild(ac);
   load(win,'mobile.js').setupMobile(doc,win,game);game.start();
-  zone.dispatch('pointerdown',{pointerId:1,clientX:100,clientY:200});zone.dispatch('pointermove',{pointerId:1,clientX:150,clientY:200});assert.ok(game.touchAxis.x>.99);
+  zone.dispatch('pointerdown',{pointerId:1,clientX:129,clientY:305});zone.dispatch('pointermove',{pointerId:1,clientX:150,clientY:305});assert.ok(game.touchAxis.x>.99);
   win.dispatch('pagehide');assert.equal(game.get().state,'paused');assert.equal(game.touchAxis.x,0);assert.equal(released,1,'pointer capture released');
 });
