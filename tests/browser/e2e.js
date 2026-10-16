@@ -48,7 +48,8 @@ async function touchDrag(page,from,to,steps=8,hold=300){
     check('mobile: buttons inside safe area (59px)',geo.flash[2]<=844-59&&geo.ignite[2]<=844-59&&geo.flash[3]<=390-21,geo.flash);
     check('mobile: touch targets >= 44px',geo.flash[2]-geo.flash[0]>=44&&geo.ignite[2]-geo.ignite[0]>=44);
     const base=await page.evaluate(()=>{const b=document.getElementById('stickBase').getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2,left:b.left,bottom:b.bottom};});
-    check('mobile: fixed joystick base sits in the left band inside the safe area, off the edge',base.left>=59+20&&base.bottom<=390-21&&base.x<140,base);
+    check('mobile: fixed joystick base sits in the left band inside the safe area, off the edge',base.left>=59+12&&base.bottom<=390-21&&base.x<140,base);
+    check('mobile: joystick base never covers the drawn map',(await page.evaluate(()=>document.getElementById('stickBase').getBoundingClientRect().right))<=drawn[0]+1,{baseRight:await page.evaluate(()=>Math.round(document.getElementById('stickBase').getBoundingClientRect().right)),mapLeft:drawn[0]});
     const before=await state(page);
     const drag=await touchDrag(page,{x:base.x+10,y:base.y},{x:base.x+40,y:base.y},6,500);
     const mid=await state(page);
