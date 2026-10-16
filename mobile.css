@@ -1,0 +1,38 @@
+#playArea{display:contents}.touch-movement,.touch-actions,#rotateHint{display:none}
+.mobile-device{overscroll-behavior:none}
+.mobile-device body{overscroll-behavior:none}
+.mobile-device #gameShell:not(:fullscreen),.mobile-device #gameShell:fullscreen{height:100dvh;max-width:none;width:100%;padding:max(6px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(6px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.mobile-device header,.mobile-device .below,.mobile-device .footer-note{display:none}
+.mobile-device .dashboard{width:100%!important;flex:none;padding:6px 8px!important;gap:12px!important;flex-wrap:nowrap;border-radius:8px;font-size:14px}
+.mobile-device .dashboard strong{font-size:20px}.mobile-device .dashboard #lives{font-size:18px}
+.mobile-device .dashboard small{font-size:10px;letter-spacing:0;margin-bottom:2px}
+.mobile-device #pause,.mobile-device #fullscreen{min-width:44px;min-height:44px;padding:8px;font-size:16px}
+.mobile-device #pause span{display:none}.mobile-device #fullscreen{font-size:0}.mobile-device #fullscreen:after{content:'⛶';font-size:22px}
+.mobile-device #playArea{display:grid;grid-template-columns:104px minmax(0,1fr) 96px;gap:8px;flex:1;min-height:0;width:100%;align-items:center;justify-items:center}
+.mobile-device .stage{grid-column:2;grid-row:1;width:min(100%,calc(var(--field-height,200px)*1200/760))!important;height:auto!important;flex:none;min-height:0;aspect-ratio:1200/760!important}
+.mobile-device .touch-movement{display:flex;grid-column:1;grid-row:1;width:100px;height:100px;border-radius:50%;border:2px solid #a58a56;background:radial-gradient(circle,#25354a,#101b2b);position:relative;align-items:center;justify-content:center;touch-action:none;user-select:none;-webkit-user-select:none}
+.mobile-device #stick{width:42px;height:42px;border-radius:50%;background:#c9ad74;border:2px solid #f2d79c;box-shadow:0 0 15px #e7bc7133;pointer-events:none}
+.mobile-device .stick-caption{position:absolute;top:108px;font-size:12px;color:#bcc9da;pointer-events:none}
+.mobile-device .touch-actions{display:flex;grid-column:3;grid-row:1;flex-direction:column;gap:12px}
+.mobile-device .touch-actions button{width:92px;min-height:64px;background:#172437;border:1px solid #c7a66a;border-radius:12px;color:#f3d596;font-size:22px;touch-action:none;user-select:none;-webkit-user-select:none}
+.mobile-device .touch-actions span,.mobile-device .touch-actions small{display:block;font-size:14px;line-height:1.3}
+.mobile-device footer{flex:none;width:100%!important;padding:0!important;gap:0!important;min-height:44px}
+.mobile-device footer>span:not(.audio-controls){display:none}
+.mobile-device .audio-preview:not([open]){width:100%!important;font-size:14px}
+.mobile-device .audio-preview summary{min-height:44px;padding:12px;font-size:14px;letter-spacing:0}
+.mobile-device .audio-preview[open]{position:fixed!important;z-index:40;inset:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));transform:none!important;width:auto!important;max-height:none!important;padding:12px;background:#101b2bf7;border:1px solid #a68a50;border-radius:8px;overflow:auto}
+.mobile-device .audio-controls{display:grid;grid-template-columns:1fr minmax(100px,2fr) 42px;gap:12px;max-width:650px;margin:12px auto}
+.mobile-device .audio-controls button{grid-column:1/-1;min-height:44px;font-size:16px}.mobile-device .audio-controls label,.mobile-device .audio-controls output{font-size:14px}.mobile-device .audio-controls input{width:100%;min-height:44px}.mobile-device #soundStatus{grid-column:1/-1;font-size:12px}
+.mobile-device .preview-buttons button{min-height:44px;font-size:14px}.mobile-device .audio-preview p{font-size:13px}.mobile-device #previewDistance{min-height:44px}
+.mobile-device .overlay{position:fixed;z-index:30;inset:0;overflow:auto;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));background:#091321f5}
+.mobile-device .overlay .card{width:min(760px,100%);max-width:none;padding:12px!important}
+.mobile-device .card .sun,.mobile-device .card .eyebrow,.mobile-device .card .intro{display:none}
+.mobile-device .card h1{font-size:32px!important;margin-bottom:12px!important}
+.mobile-device .card p{font-size:15px!important;line-height:1.5!important}
+.mobile-device .card .tip{font-size:13px!important;margin:8px 0!important}
+.mobile-device .mode-picker{max-width:none;margin:12px 0!important}.mobile-device .mode-picker label,.mobile-device .mode-picker small{font-size:12px}.mobile-device .mode-picker select{font-size:16px;min-height:44px}
+.mobile-device .primary,.mobile-device .secondary{min-height:44px;font-size:16px;padding:10px!important}.mobile-device .primary{max-width:none}
+.mobile-device .map-label{display:none}.mobile-device .flash-status{display:none}.mobile-device .hint{bottom:4px;max-width:90%;font-size:12px;padding:5px}
+@media(orientation:landscape){.mobile-device .card{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px;align-items:center}.mobile-device #title{grid-column:1;grid-row:1}.mobile-device #description{grid-column:1;grid-row:2}.mobile-device #modePicker{grid-column:2;grid-row:1/3}.mobile-device #start{grid-column:2;grid-row:3}.mobile-device #restart{grid-column:2;grid-row:4}.mobile-device #tip{grid-column:1;grid-row:3/5}}
+@media(orientation:portrait){.mobile-device #playArea{grid-template-columns:1fr 1fr;grid-template-rows:auto 136px;align-content:center;gap:12px}.mobile-device .stage{grid-column:1/-1;grid-row:1;width:min(100%,calc((var(--field-height,400px) - 148px)*1200/760))!important}.mobile-device .touch-movement{grid-column:1;grid-row:2}.mobile-device .touch-actions{grid-column:2;grid-row:2;flex-direction:row;gap:8px}.mobile-device .touch-actions button{width:76px}.mobile-device #rotateHint{display:block;flex:none;font-size:13px;color:#d8c08f;text-align:center;margin:0}.mobile-device .dashboard{gap:6px!important}.mobile-device .dashboard small{font-size:10px}.mobile-device .dashboard strong{font-size:18px}.mobile-device .dashboard #lives{font-size:14px}.mobile-device #fullscreen{display:none}.mobile-device #pause{margin-left:auto}}
+.mobile-device #mobileSoundCheck{display:inline-block}#mobileSoundCheck,#menuSoundCheck,#mobileAudioTestStatus{display:none}.mobile-device #menuSoundCheck{display:block;min-height:44px;padding:8px 16px;font-size:14px;color:#f2d28d;border:1px solid #a8874d;border-radius:5px}.mobile-device #mobileAudioTestStatus:not(:empty){display:block;font-size:12px;line-height:1.4;color:#e8d3a2;margin:4px auto}

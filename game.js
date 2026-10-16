@@ -4,9 +4,12 @@
   const W=1200,H=760,SAFE=105,SPEED=180;
   // Visual scale is independent of collision radii to preserve the existing routes.
   const HERO_SCALE=1.5,SHADOW_SCALE=1.3,SHADOW_SPEED_FACTOR=.85;
+  const MOBILE_SHADOW_SPEED_FACTOR=1.15;
+  const MOBILE_EXTRA_SHADOWS=[[320,650],[600,650]];
   const HIT_FLASH_SECONDS=.24,IGNITION_SECONDS=.8,BURST_SECONDS=.7;
   const MODES={normal:{name:'Обычная игра',lives:3,speed:1,immunity:3},training:{name:'Обучение',lives:5,speed:.8,immunity:4}};
-  let selectedMode='normal',activeMode='normal';
+  const menuMode=document.getElementById('modeSelect')?.value;
+  let selectedMode=Object.hasOwn(MODES,menuMode)?menuMode:'normal',activeMode=selectedMode;
   const settings=()=>MODES[activeMode];
   let dangerPulse=0,dangerCooldown=0;
   const buildings=[];
@@ -18,12 +21,13 @@
   const Art=typeof module!=='undefined'&&module.exports?require('./scenery.js'):window.LanternArt;
   const art=new Art(ctx,buildings,W,H);
   const sound=typeof module!=='undefined'&&module.exports?new (require('./sound.js').LanternSound)(window):window.lanternSound;
+  const touch={x:0,y:0,onClear:null,clear(){this.x=0;this.y=0;this.onClear?.();}};
   const keys=new Set();let state='menu',player,lamps,sparks,enemies,particles,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,elapsed=0,last=0;
-  function reset(){art.reset();sound.resetMusic();player={x:60,y:490,r:12,bag:0,lives:settings().lives};lamps=lampPositions.map(([x,y])=>({x,y,lit:false,ignition:0}));sparks=sparkPositions.map(([x,y],i)=>({x,y,t:i*.9,taken:false}));enemies=[[600,390],[1090,710],[880,250],[310,220]].map(([x,y],i)=>({x,y,r:14,vx:0,vy:0,phase:i*2}));dangerPulse=0;dangerCooldown=0;particles=[];remaining=120;cooldown=0;invulnerable=0;burst=0;burstOrigin=null;hitFlash=0;elapsed=0;navClock=0;field=[];keys.clear();updateUI();}
+  function reset(){art.reset();sound.resetMusic();player={x:60,y:490,r:12,bag:0,lives:settings().lives};lamps=lampPositions.map(([x,y])=>({x,y,lit:false,ignition:0}));sparks=sparkPositions.map(([x,y],i)=>({x,y,t:i*.9,taken:false}));const spawns=[[600,390],[1090,710],[880,250],[310,220],...(window.lanternMobileAudio?MOBILE_EXTRA_SHADOWS:[])];enemies=spawns.map(([x,y],i)=>({x,y,r:14,vx:0,vy:0,phase:i*2}));dangerPulse=0;dangerCooldown=0;particles=[];remaining=120;cooldown=0;invulnerable=0;burst=0;burstOrigin=null;hitFlash=0;elapsed=0;navClock=0;field=[];keys.clear();touch.clear();updateUI();}
   const modePicker=document.getElementById('modePicker'),modeSelect=document.getElementById('modeSelect'),modeDetails=document.getElementById('modeDetails');
   function selectMode(value){if(state!=='menu'||!Object.hasOwn(MODES,value))return;selectedMode=value;activeMode=value;player.lives=settings().lives;updateUI();modeSelect.value=value;modeDetails.textContent=`Выбрано: ${MODES[value].name} · ${MODES[value].lives} ${value==='training'?'жизней':'жизни'} · защита ${MODES[value].immunity} сек.`;ui.intro.innerHTML=`<span><b>7</b> фонарей</span><span><b>120</b> секунд</span>`;}
   let startToken=0,previewPaused=false;
-  function showMenu(){previewPaused=false;startToken++;sound.stopDiagnostic();sound.setScene('menu');state='menu';activeMode=selectedMode;reset();ui.start.disabled=false;modeSelect.disabled=false;keys.clear();ui.overlay.hidden=false;ui.pause.disabled=true;ui.intro.hidden=false;ui.restart.hidden=true;modePicker.hidden=false;ui.eyebrow.textContent='МАЛЕНЬКАЯ ИСТОРИЯ В БОЛЬШОМ ГОРОДЕ';ui.title.innerHTML='Последний<br><span>фонарь</span>';ui.description.textContent='Соберите искры и зажгите семь фонарей, пока ночь не забрала последний свет.';ui.start.textContent='Зажечь надежду →';ui.tip.textContent='Свет фонарей защищает от теней.';ui.hint.hidden=true;selectMode(selectedMode);}
+  function showMenu(){previewPaused=false;startToken++;sound.stopDiagnostic();sound.setScene('menu');state='menu';activeMode=selectedMode;reset();ui.start.disabled=false;modeSelect.disabled=false;keys.clear();touch.clear();ui.overlay.hidden=false;ui.pause.disabled=true;ui.intro.hidden=false;ui.restart.hidden=true;modePicker.hidden=false;ui.eyebrow.textContent='МАЛЕНЬКАЯ ИСТОРИЯ В БОЛЬШОМ ГОРОДЕ';ui.title.innerHTML='Последний<br><span>фонарь</span>';ui.description.textContent='Соберите искры и зажгите семь фонарей, пока ночь не забрала последний свет.';ui.start.textContent='Зажечь надежду →';ui.tip.textContent='Свет фонарей защищает от теней.';ui.hint.hidden=true;const audioTest=document.getElementById('mobileAudioTestStatus');if(audioTest)audioTest.textContent='';selectMode(selectedMode);}
   modeSelect.onchange=()=>selectMode(modeSelect.value);
   function start(){previewPaused=false;activeMode=selectedMode;reset();state='playing';sound.setScene('playing');ui.overlay.hidden=true;modePicker.hidden=true;ui.pause.disabled=false;canvas.focus();}
   async function requestStart(){
@@ -31,25 +35,39 @@
     // resume() happens synchronously inside this click, before any await.
     sound.startRequestedAt=sound.host.performance?.now()??Date.now();const ready=sound.unlock(),token=++startToken;
     state='preparing';ui.start.disabled=true;modeSelect.disabled=true;ui.start.textContent='Подготовка звука…';
-    if(sound.enabled&&sound.volume>0&&sound.available()&&!sound.failed){if(!sound.recordings.loaded)await sound.prepare();if(sound.context?.state!=='running')await ready;}
+    if(window.lanternMobileAudio){
+      if(sound.enabled&&sound.volume>0&&sound.available()&&!sound.failed){
+        let timer;
+        const preparation=sound.recordings.loaded?Promise.resolve():sound.prepare();
+        const result=await Promise.race([
+          Promise.allSettled([ready,preparation]).then(()=>'ready'),
+          new Promise(resolve=>{timer=setTimeout(()=>resolve('timeout'),2500);})
+        ]);
+        clearTimeout(timer);
+        if(result==='timeout'){
+          window.lanternAudioReport?.('start-timeout');
+          window.lanternAudioReport?.('fallback-active',{reason:'audio-still-loading'});
+        }
+      }
+    }else if(sound.enabled&&sound.volume>0&&sound.available()&&!sound.failed){if(!sound.recordings.loaded)await sound.prepare();if(sound.context?.state!=='running')await ready;}
     if(token!==startToken||state!=='preparing')return;
     ui.start.disabled=false;modeSelect.disabled=false;start();sound.beginRound();
     if(document.hidden||!sound.pageActive)overlay('paused');
   }
-  function overlay(kind){sound.setScene(kind);if(kind==='won'||kind==='lost')sound.play(kind);state=kind;keys.clear();ui.overlay.hidden=false;ui.intro.hidden=true;ui.restart.hidden=kind!=='paused';ui.pause.disabled=true;
+  function overlay(kind){sound.setScene(kind);if(kind==='won'||kind==='lost')sound.play(kind);state=kind;keys.clear();touch.clear();ui.overlay.hidden=false;ui.intro.hidden=true;ui.restart.hidden=kind!=='paused';ui.pause.disabled=true;
     modePicker.hidden=true;
     ui.eyebrow.textContent=kind==='paused'?'ГОРОД ПОДОЖДЁТ':kind==='won'?'НОЧЬ ОТСТУПИЛА':'СВЕТ ЕЩЁ МОЖНО ВЕРНУТЬ';
     ui.title.textContent=kind==='paused'?'Тихая пауза':kind==='won'?'Город снова светит':'Последняя искра';
     ui.description.textContent=kind==='paused'?'Сделайте вдох. Ваше время и весь город замерли.':kind==='won'?`Вы зажгли все семь фонарей за ${Math.ceil(120-remaining)} сек. В окнах снова появился свет.`:player.lives===0?'Тени настигли вас. Держитесь ближе к свету и используйте вспышку, когда они подойдут.':'Время истекло. Собирайте искры по пути и зажигайте фонари, чтобы открыть безопасные убежища.';
-    ui.start.textContent=kind==='paused'?'Продолжить →':'Попробовать снова →';ui.tip.textContent=kind==='won'?'Даже одна искра может изменить ночь.':'WASD — движение · E — фонарь · Пробел — вспышка';ui.hint.hidden=true;
+    ui.start.textContent=kind==='paused'?'Продолжить →':'Попробовать снова →';ui.tip.textContent=kind==='won'?'Даже одна искра может изменить ночь.':(window.lanternMobile?'Джойстик — движение · Зажечь — фонарь · Вспышка — защита':'WASD — движение · E — фонарь · Пробел — вспышка');ui.hint.hidden=true;
   }
-  function resume(){previewPaused=false;state='playing';sound.setScene('playing');ui.overlay.hidden=true;ui.pause.disabled=false;keys.clear();}
+  function resume(){previewPaused=false;state='playing';sound.setScene('playing');ui.overlay.hidden=true;ui.pause.disabled=false;keys.clear();touch.clear();}
   sound.onPreviewRequest=()=>{if(state==='playing'){previewPaused=true;overlay('paused');}};
   sound.onPreviewEnd=()=>{if(previewPaused&&state==='paused'&&!document.hidden){previewPaused=false;resume();}else previewPaused=false;};
   ui.start.onclick=()=>{if(state==='preparing')return;if(state==='paused'){sound.stopDiagnostic();sound.recordings.stopAll();previewPaused=false;void sound.unlock();resume();}else if(state==='menu')return requestStart();else showMenu();};ui.restart.onclick=showMenu;ui.pause.onclick=()=>{if(state==='playing')overlay('paused');};
   const movement=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight'];
   window.addEventListener('keydown',e=>{if([...movement,'Space','KeyE','Escape'].includes(e.code))e.preventDefault();if(e.code==='Escape'&&!e.repeat){if(state==='playing')overlay('paused');else if(state==='paused')resume();return;}if(state!=='playing')return;keys.add(e.code);if(!e.repeat&&e.code==='KeyE')light();if(!e.repeat&&e.code==='Space')flash();});
-  window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();if(state==='playing')overlay('paused');});document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='playing')overlay('paused');});
+  window.addEventListener('keyup',e=>keys.delete(e.code));window.addEventListener('blur',()=>{keys.clear();touch.clear();if(state==='playing')overlay('paused');});document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='playing')overlay('paused');});
   const distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
   function blocked(x,y,r){return x<r||x>W-r||y<r||y>H-r||buildings.some(b=>Math.hypot(x-Math.max(b.x,Math.min(x,b.x+b.w)),y-Math.max(b.y,Math.min(y,b.y+b.h)))<r);}
   function safeAt(x,y){return lamps.some(l=>l.lit&&Math.hypot(x-l.x,y-l.y)<SAFE);}
@@ -70,7 +88,7 @@
   // Navigation grid: breadth-first field prevents shadows getting stuck behind houses.
   const CELL=20,COLS=W/CELL,ROWS=H/CELL;let field=[],navClock=0;
   function navigation(){field=new Int16Array(COLS*ROWS).fill(-1);const sx=Math.floor(player.x/CELL),sy=Math.floor(player.y/CELL),queue=[sy*COLS+sx];field[queue[0]]=0;for(let head=0;head<queue.length;head++){const id=queue[head],x=id%COLS,y=Math.floor(id/COLS);for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){let nx=x+dx,ny=y+dy,ni=ny*COLS+nx;if(nx<0||nx>=COLS||ny<0||ny>=ROWS||field[ni]>=0||blocked(nx*CELL+10,ny*CELL+10,15))continue;field[ni]=field[id]+1;queue.push(ni);}}}
-  const shadowSpeed=t=>(72+Math.min(t*.2,22))*SHADOW_SPEED_FACTOR*settings().speed;
+  const shadowSpeed=t=>(72+Math.min(t*.2,22))*(window.lanternMobileAudio?MOBILE_SHADOW_SPEED_FACTOR:SHADOW_SPEED_FACTOR)*settings().speed;
   const heroOpacity=()=>invulnerable>0&&Math.floor((settings().immunity-invulnerable)*10)%2===0?.25:1;
   function updateDanger(dt){
     dangerPulse=Math.max(0,dangerPulse-dt);dangerCooldown=Math.max(0,dangerCooldown-dt);
@@ -80,12 +98,16 @@
     if(dangerCooldown===0){dangerPulse=.45;dangerCooldown=2.5;}
   }
   function updateEffects(dt){burst=Math.max(0,burst-dt);hitFlash=Math.max(0,hitFlash-dt);for(const l of lamps)l.ignition=Math.max(0,l.ignition-dt);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;}particles=particles.filter(p=>p.life>0);}
-  function update(dt){elapsed+=dt;remaining=Math.max(0,remaining-dt);cooldown=Math.max(0,cooldown-dt);invulnerable=Math.max(0,invulnerable-dt);updateEffects(dt);let dx=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),dy=Number(keys.has('KeyS')||keys.has('ArrowDown'))-Number(keys.has('KeyW')||keys.has('ArrowUp'));const len=Math.hypot(dx,dy)||1;const oldX=player.x,oldY=player.y;move(player,dx/len*SPEED*dt,dy/len*SPEED*dt);sound.walk(Math.hypot(player.x-oldX,player.y-oldY));
+  function update(dt){elapsed+=dt;remaining=Math.max(0,remaining-dt);cooldown=Math.max(0,cooldown-dt);invulnerable=Math.max(0,invulnerable-dt);updateEffects(dt);let dx=Number(keys.has('KeyD')||keys.has('ArrowRight'))-Number(keys.has('KeyA')||keys.has('ArrowLeft')),dy=Number(keys.has('KeyS')||keys.has('ArrowDown'))-Number(keys.has('KeyW')||keys.has('ArrowUp'));if(!dx&&!dy){dx=touch.x;dy=touch.y;}const len=Math.hypot(dx,dy)||1;const oldX=player.x,oldY=player.y;move(player,dx/len*SPEED*dt,dy/len*SPEED*dt);sound.walk(Math.hypot(player.x-oldX,player.y-oldY));
     for(const s of sparks)if(!s.taken&&distance(s,player)<25){s.taken=true;player.bag++;sound.play('spark');emit(s.x,s.y,12,'#edc878');}
     navClock-=dt;if(navClock<=0){navigation();navClock=.25;}
-    for(const e of enemies){if(safeAt(e.x,e.y)){const l=lamps.find(l=>l.lit&&distance(e,l)<SAFE);expel(e,l);}let tx=player.x,ty=player.y;const ix=Math.floor(e.x/CELL),iy=Math.floor(e.y/CELL);let best=field[iy*COLS+ix];if(distance(e,player)>45){for(const [ox,oy] of [[0,1],[1,0],[-1,0],[0,-1]]){const nx=ix+ox,ny=iy+oy;if(nx<0||nx>=COLS||ny<0||ny>=ROWS)continue;const f=field[ny*COLS+nx];if(f>=0&&(best<0||f<best)){best=f;tx=nx*CELL+10;ty=ny*CELL+10;}}}const a=Math.atan2(ty-e.y,tx-e.x),speed=shadowSpeed(elapsed);move(e,(Math.cos(a)*speed+e.vx)*dt,(Math.sin(a)*speed+e.vy)*dt,true);e.vx*=Math.exp(-5*dt);e.vy*=Math.exp(-5*dt);if(distance(e,player)<25&&invulnerable<=0&&!safeAt(player.x,player.y)){player.lives--;sound.play('hit');invulnerable=settings().immunity;hitFlash=HIT_FLASH_SECONDS;emit(player.x,player.y,28,'#ffd6c2');e.vx=-Math.cos(a)*260;e.vy=-Math.sin(a)*260;if(player.lives===0){overlay('lost');break;}}}
+    for(const e of enemies){if(safeAt(e.x,e.y)){const l=lamps.find(l=>l.lit&&distance(e,l)<SAFE);expel(e,l);}let tx=player.x,ty=player.y;const ix=Math.floor(e.x/CELL),iy=Math.floor(e.y/CELL);let best=field[iy*COLS+ix];if(distance(e,player)>45){for(const [ox,oy] of [[0,1],[1,0],[-1,0],[0,-1]]){const nx=ix+ox,ny=iy+oy;if(nx<0||nx>=COLS||ny<0||ny>=ROWS)continue;const f=field[ny*COLS+nx];if(f>=0&&(best<0||f<best)){best=f;tx=nx*CELL+10;ty=ny*CELL+10;}}}const a=Math.atan2(ty-e.y,tx-e.x),speed=shadowSpeed(elapsed);let pursuitX=Math.cos(a),pursuitY=Math.sin(a);
+      // On narrow mobile screens several shadows followed one identical route
+      // and appeared to be a single creature. Keep their speed, but spread the group.
+      if(window.lanternMobileAudio)for(const other of enemies){if(other===e)continue;const d=distance(e,other);if(d<1||d>=72)continue;const force=.9*(1-d/72);pursuitX+=(e.x-other.x)/d*force;pursuitY+=(e.y-other.y)/d*force;}
+      const length=Math.hypot(pursuitX,pursuitY)||1;move(e,(pursuitX/length*speed+e.vx)*dt,(pursuitY/length*speed+e.vy)*dt,true);e.vx*=Math.exp(-5*dt);e.vy*=Math.exp(-5*dt);if(distance(e,player)<25&&invulnerable<=0&&!safeAt(player.x,player.y)){player.lives--;sound.play('hit');invulnerable=settings().immunity;hitFlash=HIT_FLASH_SECONDS;emit(player.x,player.y,28,'#ffd6c2');e.vx=-Math.cos(a)*260;e.vy=-Math.sin(a)*260;if(player.lives===0){overlay('lost');break;}}}
     updateDanger(dt);if(remaining<=0&&state==='playing')overlay('lost');updateSoundThreat();updateUI();}
-  function updateUI(){const t=Math.ceil(remaining);ui.time.textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;ui.time.classList.toggle('urgent',remaining<25);ui.lives.textContent='♥ '.repeat(player.lives)+'♡ '.repeat(settings().lives-player.lives);ui.sparks.textContent='✦ '+player.bag;ui.lamps.innerHTML=lamps.filter(l=>l.lit).length+' <em>/ 7</em>';ui.flashLabel.textContent=cooldown>0?`ЕЩЁ ${cooldown.toFixed(1)} СЕК`:'ПРОБЕЛ · ГОТОВА';ui.flashBar.style.width=(1-cooldown/8)*100+'%';const l=lamps.find(l=>!l.lit&&distance(l,player)<52);ui.hint.hidden=state!=='playing'||!l;ui.hint.textContent=player.bag?'E · Зажечь фонарь · 1 искра':'Нужна искра · ищите золотые огоньки';}
+  function updateUI(){const t=Math.ceil(remaining);ui.time.textContent=`${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;ui.time.classList.toggle('urgent',remaining<25);ui.lives.textContent='♥ '.repeat(player.lives)+'♡ '.repeat(settings().lives-player.lives);ui.sparks.textContent='✦ '+player.bag;ui.lamps.innerHTML=lamps.filter(l=>l.lit).length+' <em>/ 7</em>';ui.flashLabel.textContent=cooldown>0?`ЕЩЁ ${cooldown.toFixed(1)} СЕК`:'ПРОБЕЛ · ГОТОВА';ui.flashBar.style.width=(1-cooldown/8)*100+'%';const l=lamps.find(l=>!l.lit&&distance(l,player)<52);ui.hint.hidden=state!=='playing'||!l;ui.hint.textContent=player.bag?(window.lanternMobile?'Зажечь · 1 искра':'E · Зажечь фонарь · 1 искра'):'Нужна искра · ищите золотые огоньки';}
   function glow(x,y,r,color){const g=ctx.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,color);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.fillRect(x-r,y-r,r*2,r*2);}
   function circle(x,y,r,color){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();}
   function ring(x,y,r,color,width=2){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();}
@@ -110,8 +132,8 @@
     if(pulse>0){ring(l.x,l.y,SAFE*(1-(pulse*pulse)),`rgba(255,230,175,${pulse})`,3);}
     ctx.restore();
   }
-  function drawShadow(e,t){art.creature(e,t);}
-  function drawHero(){art.traveler(player,heroOpacity());}
+  function drawShadow(e,t){if(window.lanternMobileAudio){ctx.save();ctx.translate(e.x,e.y);ctx.scale(1.35,1.35);ctx.translate(-e.x,-e.y);art.creature(e,t);ctx.restore();}else art.creature(e,t);}
+  function drawHero(){if(window.lanternMobileAudio){ctx.save();ring(player.x,player.y,25,'#ffe8ae99',2);ctx.translate(player.x,player.y);ctx.scale(1.2,1.2);ctx.translate(-player.x,-player.y);art.traveler(player,heroOpacity());ctx.restore();}else art.traveler(player,heroOpacity());}
   function drawBurst(){
     if(burst<=0||!burstOrigin)return;
     const fade=burst/BURST_SECONDS,progress=1-fade,radius=195*(1-fade*fade),{x,y}=burstOrigin;
@@ -126,7 +148,7 @@
   }
   function draw(t){art.ground(lamps);
     for(const l of lamps){if(l.lit)drawLampLight(l);art.lamp(l,lamps.indexOf(l));}
-    for(const s of sparks)if(!s.taken){let y=s.y+Math.sin(t*2+s.t)*4;glow(s.x,y,25,'#f3c36744');ctx.save();ctx.translate(s.x,y);ctx.rotate(Math.PI/4);ctx.fillStyle='#f7d98a';ctx.fillRect(-4,-4,8,8);ctx.restore();}
+    for(const s of sparks)if(!s.taken){let y=s.y+Math.sin(t*2+s.t)*4;glow(s.x,y,25,'#f3c36744');ctx.save();ctx.translate(s.x,y);ctx.rotate(Math.PI/4);ctx.fillStyle='#f7d98a';const size=window.lanternMobileAudio?12:8;ctx.fillRect(-size/2,-size/2,size,size);ctx.restore();}
     for(const e of enemies)drawShadow(e,t);
     drawHero();drawBurst();
     art.particles(particles);art.weather();
@@ -135,9 +157,11 @@
     if(hitFlash>0){ctx.save();const fade=hitFlash/HIT_FLASH_SECONDS;ctx.fillStyle=`rgba(255,155,124,${fade*.16})`;ctx.fillRect(0,0,W,H);glow(player.x,player.y,90,`rgba(255,227,212,${fade*.8})`);ring(player.x,player.y,24+(1-fade)*40,`rgba(255,195,168,${fade})`,4);ctx.restore();}
   }
   function frame(ms){const dt=Math.max(0,Math.min((ms-last)/1000,.04));last=ms;if(state==='playing')update(dt);else if(state==='won'||state==='lost')updateEffects(dt);if(state!=='paused')art.advance(dt,player,state==='playing');sound.tick();draw(art.clock);requestAnimationFrame(frame);}
+  const controls={touch,playing:()=>state==='playing',light:()=>{if(state==='playing')light();},flash:()=>{if(state==='playing')flash();},pause:()=>{if(state==='playing')overlay('paused');},status:()=>({state,cooldown,bag:player?.bag||0})};
+  window.lanternControls=controls;
   reset();showMenu();requestAnimationFrame(frame);
   // Read-only geometry plus actions for the local regression test runner.
-  if(typeof module!=='undefined'&&module.exports)module.exports={buildings,lampPositions,sparkPositions,blocked,start,update,light,flash,overlay,resume,keys,sound,updateSoundThreat,shadowSpeed,heroOpacity,showMenu,selectMode,get:()=>({state,player,lamps,sparks,enemies,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,selectedMode,activeMode,dangerPulse,dangerCooldown})};
+  if(typeof module!=='undefined'&&module.exports)module.exports={controls,buildings,lampPositions,sparkPositions,blocked,start,update,light,flash,overlay,resume,keys,sound,updateSoundThreat,shadowSpeed,heroOpacity,showMenu,selectMode,get:()=>({state,player,lamps,sparks,enemies,remaining,cooldown,invulnerable,burst,burstOrigin,hitFlash,selectedMode,activeMode,dangerPulse,dangerCooldown})};
 })();
 
 

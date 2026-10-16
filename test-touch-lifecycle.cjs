@@ -1,0 +1,12 @@
+const assert=require('assert/strict'),{setup}=require('./touch.js');let n=0;const test=(s,f)=>{f();n++;console.log('PASS '+s)};
+class Target{constructor(){this.listeners={};this.style={setProperty(){}};this.clientHeight=300;this.textContent='';}addEventListener(k,f){(this.listeners[k]??=[]).push(f)}emit(k,e={}){for(const f of this.listeners[k]||[])f(e)}appendChild(){}before(){}getBoundingClientRect(){return{left:0,top:0,width:100,height:100}}setPointerCapture(){}hasPointerCapture(){return true}releasePointerCapture(){}}
+const elements={},doc=new Target(),win=new Target();doc.getElementById=id=>elements[id]??=new Target();doc.querySelector=()=>new Target();doc.documentElement={classList:{toggle(){}}};win.matchMedia=()=>({matches:true,addEventListener(){}});win.navigator={maxTouchPoints:5};win.innerWidth=667;win.innerHeight=375;let raf=0,pauses=0;win.requestAnimationFrame=()=>raf++;const api={touch:{x:0,y:0},playing:()=>true,pause:()=>pauses++,status:()=>({state:'playing',cooldown:0}),light(){},flash(){}};const ui=setup(doc,win,api),down=()=>elements.joystick.emit('pointerdown',{button:0,pointerId:1,clientX:100,clientY:50,preventDefault(){}});
+test('DOM pointerdown reaches movement',()=>{down();assert.equal(api.touch.x,1)});
+test('DOM blur clears movement',()=>{win.emit('blur');assert.equal(api.touch.x,0)});
+test('DOM pointercancel clears movement',()=>{down();win.emit('pointercancel',{pointerId:1});assert.equal(api.touch.x,0)});
+test('Hidden tab clears movement',()=>{down();doc.hidden=true;doc.emit('visibilitychange');assert.equal(api.touch.x,0)});
+test('Pagehide clears and pauses',()=>{down();win.emit('pagehide');assert.equal(api.touch.x,0);assert.equal(pauses,1)});
+test('Rotation clears and pauses',()=>{down();win.innerWidth=375;win.innerHeight=667;win.emit('resize');assert.equal(api.touch.x,0);assert.equal(pauses,2)});
+test('Mobile audio panel pauses behind overlay',()=>{down();elements.audioPreview.open=true;elements.audioPreview.emit('toggle');assert.equal(api.touch.x,0);assert.equal(pauses,3)});
+test('Reset reuses listeners and single RAF chain',()=>{const before=JSON.stringify(Object.fromEntries(Object.entries(win.listeners).map(([k,v])=>[k,v.length])));for(let i=0;i<50;i++)api.touch.onClear();assert.equal(JSON.stringify(Object.fromEntries(Object.entries(win.listeners).map(([k,v])=>[k,v.length]))),before);assert.equal(raf,1)});
+console.log(n+' touch lifecycle checks passed');

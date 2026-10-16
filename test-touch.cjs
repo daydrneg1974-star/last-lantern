@@ -1,0 +1,17 @@
+const assert=require('assert/strict'),{direction,TouchController}=require('./touch.js');let count=0;const test=(name,fn)=>{fn();count++;console.log('PASS '+name)};let playing=true,lights=0,flashes=0;const api={touch:{x:0,y:0},playing:()=>playing,light:()=>lights++,flash:()=>flashes++},c=new TouchController(api),rect={left:200,top:100,width:100,height:100};
+test('Dead zone stops drift',()=>assert.deepEqual(direction(253,154,rect),{x:0,y:0}));
+test('CSS coordinates are scale independent',()=>{assert.deepEqual(direction(300,150,rect),{x:1,y:0});assert.deepEqual(direction(600,300,{left:400,top:200,width:200,height:200}),{x:1,y:0});});
+test('Diagonal speed bounded',()=>assert.ok(Math.abs(Math.hypot(...Object.values(direction(400,300,rect)))-1)<1e-10));
+test('One pointer owns joystick',()=>{assert.ok(c.down(1,300,150,rect));assert.equal(c.down(2,200,150,rect),false);c.move(2,200,150,rect);assert.equal(api.touch.x,1)});
+test('Multitouch: movement and both abilities',()=>{c.action(2,'light');c.action(3,'flash');assert.equal(lights,1);assert.equal(flashes,1);c.up(2);assert.equal(api.touch.x,1)});
+test('No repeated ability on duplicate down',()=>{c.action(3,'flash');assert.equal(flashes,1)});
+test('Pointer release or cancellation clears motion',()=>{c.up(1);assert.equal(api.touch.x,0);assert.equal(c.pointer,null)});
+test('Blur and reset clear all pointer state',()=>{c.down(4,300,150,rect);c.clear();assert.equal(c.actions.size,0);assert.equal(api.touch.x,0)});
+test('Paused input ignored',()=>{playing=false;assert.equal(c.down(5,300,150,rect),false);c.action(6,'light');assert.equal(lights,1)});
+const elements=new Map(),ctx=new Proxy({},{get:(_,k)=>k==='createRadialGradient'?()=>({addColorStop(){}}):()=>{}});global.document={hidden:false,getElementById(id){if(!elements.has(id))elements.set(id,{style:{},classList:{toggle(){}},getContext:()=>ctx,focus(){}});return elements.get(id)},createElement:()=>({getContext:()=>ctx}),addEventListener(){}};global.window={addEventListener(){}};global.requestAnimationFrame=()=>{};const g=require('./game.js'),real=new TouchController(g.controls);g.controls.touch.onClear=()=>real.clear();
+test('Real hero speed unchanged',()=>{g.start();const y=g.get().player.y;real.down(1,250,100,rect);g.update(.1);assert.ok(Math.abs(g.get().player.y-y+18)<1e-6)});
+test('Keyboard priority preserved',()=>{g.keys.add('ArrowDown');const y=g.get().player.y;g.update(.1);assert.ok(Math.abs(g.get().player.y-y-18)<1e-6);g.keys.clear()});
+test('Pause/resume clear touch',()=>{g.overlay('paused');assert.equal(real.pointer,null);g.resume();assert.equal(g.controls.touch.y,0)});
+test('Real actions respect state and cooldown',()=>{g.showMenu();g.controls.flash();assert.equal(g.get().cooldown,0);g.start();g.controls.flash();g.update(.1);g.controls.flash();assert.equal(g.get().cooldown,7.9)});
+for(const mode of ['normal','training'])test(mode+' seven lamps and restart',()=>{g.showMenu();g.selectMode(mode);g.start();g.get().player.bag=7;for(const l of g.get().lamps){Object.assign(g.get().player,{x:l.x,y:l.y});g.controls.light();}assert.equal(g.get().state,'won');g.showMenu();assert.equal(g.get().remaining,120);assert.equal(g.get().player.lives,mode==='normal'?3:5);assert.equal(g.controls.touch.x,0)});
+console.log(count+' touch checks passed');

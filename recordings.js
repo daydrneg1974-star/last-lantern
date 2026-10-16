@@ -9,18 +9,36 @@
       if(!c||typeof c.decodeAudioData!=='function'){this.loaded=true;return Promise.resolve();}
       this.metrics={};this.offsets={};const clock=()=>this.sound.host.performance?.now()??Date.now();
       this.loading=Promise.all(['dark','light','near','attack1','attack2'].map(async key=>{
-        const item=this.pack[key];if(!item?.data){this.failed.add(key);return;}
-        const began=clock();try{const binary=this.sound.host.atob(item.data),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+        const item=this.pack[key];if(!item?.data&&!item?.url){this.failed.add(key);return;}
+        const began=clock();try{
+          let bytes;
+          if(item.data){
+            const binary=this.sound.host.atob(item.data),array=new Uint8Array(binary.length);
+            for(let i=0;i<binary.length;i++)array[i]=binary.charCodeAt(i);
+            bytes=array.buffer;
+          }else{
+            this.sound.host.lanternAudioReport?.('audio-request',{key});
+            const controller=new AbortController();let requestTimer;
+            const request=this.sound.host.fetch(item.url,{signal:controller.signal}).then(async response=>{
+              if(!response.ok)throw Error('HTTP '+response.status);
+              return response.arrayBuffer();
+            });
+            bytes=await Promise.race([request,new Promise((_,reject)=>{
+              requestTimer=(this.sound.host.setTimeout||setTimeout)(()=>{controller.abort();reject(Error('Fetch timeout'));},10000);
+            })]).finally(()=>(this.sound.host.clearTimeout||clearTimeout)(requestTimer));
+            this.sound.host.lanternAudioReport?.('audio-loaded',{key,bytes:bytes.byteLength});
+          }
           const decodedAt=clock();
-          const decode=c.decodeAudioData(bytes.buffer);let timeout;
+          const decode=c.decodeAudioData(bytes);let timeout;
           const buffer=await (this.sound.host.setTimeout?Promise.race([decode,new Promise((_,reject)=>{timeout=this.sound.host.setTimeout(()=>reject(Error('Decode timeout')),10000);})]).finally(()=>this.sound.host.clearTimeout(timeout)):decode);
           if(!Number.isFinite(buffer.duration)||buffer.duration<=0)throw Error('Invalid recording');this.buffers[key]=buffer;
           let peak=0;for(let ch=0;ch<(buffer.numberOfChannels||0);ch++){const a=buffer.getChannelData(ch);for(let i=0;i<a.length;i++)peak=Math.max(peak,Math.abs(a[i]));}
           this.gains[key]=peak>.001?Math.min(2,.85/peak):1;
           if(['dark','light'].includes(key))this.offsets[key]=this.findOnset(buffer);
           this.metrics[key]={unpackMs:Math.round(decodedAt-began),decodeAndAnalysisMs:Math.round(clock()-decodedAt),duration:buffer.duration,offset:this.offsets[key]||0};
-        }catch(error){this.failed.add(key);this.metrics[key]={error:String(error?.message||error)};}
-      })).then(()=>{this.loaded=true;this.sound.onChange();});return this.loading;
+          if(item.url)this.sound.host.lanternAudioReport?.('audio-decoded',{key});
+        }catch(error){this.failed.add(key);this.metrics[key]={error:String(error?.message||error)};if(item.url)this.sound.host.lanternAudioReport?.(/timeout/i.test(String(error?.message))?'audio-timeout':'audio-error',{key,message:String(error?.message||error)});}
+      })).then(()=>{this.loaded=true;this.sound.onChange();this.sound.host.lanternAudioReport?.(this.failed.size?'fallback-active':'audio-ready',{status:this.status()});});return this.loading;
     }
     // Skip only a sustained quiet introduction, never seek on every frame.
     findOnset(buffer){
@@ -65,7 +83,7 @@
       if(s.lanterns>=7&&!s.diagnostic){this.stopMusic();return true;}
       if(!s.musicVolume){this.stopMusic();return false;}
       const key=s.lanterns>=3?'light':'dark';
-      if(!this.loaded&&Object.keys(this.pack).length)return true;
+      if(!this.loaded&&Object.keys(this.pack).length)return !s.host.lanternMobileAudio;
       // A low drone alone is not a substitute for an audible musical part.
       if(!this.buffers[key]||!this.buffers.light){this.stopMusic();return false;}
       if(this.musicKey!==key){

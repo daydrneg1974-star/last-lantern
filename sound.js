@@ -4,9 +4,18 @@
   class LanternSound {
     constructor(host={}){this.host=host;this.context=null;this.enabled=true;this.volume=.35;this.effectsVolume=.7;this.musicVolume=.55;this.scene='menu';this.pageActive=true;this.voices=new Set();this.musicVoices=new Set();this.lanterns=0;this.musicStage=0;this.musicBeat=0;this.nextMusicTime=null;this.steps=0;this.pending=null;this.failed=false;this.onChange=()=>{};this.threat=0;this.heartbeat=0;this.nextHeartbeat=null;this.lastAttack=-Infinity;this.duckUntil=0;this.mixDuck=1;this.threatVoices=new Set();const Recordings=typeof module!=='undefined'&&module.exports?require('./recordings.js'):host.LanternRecordings;this.recordings=new Recordings(this,host.LANTERN_AUDIO_PACK);}
     available(){return Boolean(this.host.AudioContext||this.host.webkitAudioContext);}
+    configureMobileSession(){
+      const device=this.host.navigator;
+      if(!this.host.lanternMobileAudio||!device?.audioSession)return;
+      const agent=device.userAgent||'';
+      if(!/iPhone|iPad|iPod/.test(agent)&&!(/Macintosh/.test(agent)&&device.maxTouchPoints>1))return;
+      // iOS may render a running Web Audio graph into its ringer-muted ambient
+      // category. This changes only the OS output route, not the game mix.
+      try{device.audioSession.type='playback';}catch{}
+    }
     async prepare(){
       if(!this.available()||this.failed)return;
-      try{if(!this.context)this.build();await this.recordings.load();}catch{this.failed=true;this.onChange();}
+      try{this.configureMobileSession();if(!this.context)this.build();await this.recordings.load();}catch{this.failed=true;this.onChange();}
     }
     beginRound(){this.tick();if(this.ready()&&this.musicVolume){this.musicNote(146.83,.65,.11,0,'bass');this.musicNote(220,.8,.06,0,'pad');}this.startLatencyMs=this.startRequestedAt!==undefined?Math.round((this.host.performance?.now()??Date.now())-this.startRequestedAt):0;this.onChange();}
     async previewThreat(distance,attack=false,persistent=false){
@@ -30,14 +39,28 @@
       if(!this.enabled||!this.available()||this.failed)return false;
       if(this.pending)return this.pending;
       try{
+        this.configureMobileSession();
         if(!this.context)this.build();
         // Called directly from a trusted pointer/key/click handler, never from animation.
         if(this.context.state!=='running'){
-          this.pending=Promise.resolve(this.context.resume()).then(()=>true,()=>false);
+          const resume=Promise.resolve(this.context.resume()).then(()=>true,()=>false);
+          if(this.host.lanternMobileAudio){
+            let timer;
+            this.pending=Promise.race([resume,new Promise(resolve=>{timer=(this.host.setTimeout||setTimeout)(()=>resolve(false),1200);})])
+              .finally(()=>(this.host.clearTimeout||clearTimeout)(timer));
+          }else this.pending=resume;
           await this.pending;this.pending=null;
         }
-        this.apply();void this.recordings.load();return this.context.state==='running';
-      }catch{this.failed=true;this.pending=null;this.onChange();return false;}
+        this.apply();void this.recordings.load();
+        if(this.host.lanternMobileAudio)this.host.lanternAudioReport?.('audio-context',{state:this.context.state,ready:this.ready()});
+        return this.context.state==='running';
+      }catch(error){
+        // A rejected mobile resume can be retried by the next touch release.
+        if(!this.host.lanternMobileAudio||!this.context||!this.master)this.failed=true;
+        this.pending=null;this.onChange();
+        if(this.host.lanternMobileAudio)this.host.lanternAudioReport?.('audio-context-error',{state:this.context?.state||'unavailable',message:String(error?.message||error)});
+        return false;
+      }
     }
     build(){
       const C=this.host.AudioContext||this.host.webkitAudioContext,c=this.context=new C();
@@ -194,8 +217,26 @@
     distanceSlider.onkeydown=e=>e.stopPropagation();
     doc.getElementById('audioPreview').ontoggle=()=>{if(!doc.getElementById('audioPreview').open){sound.stopDiagnostic();sound.recordings.stopAll();sound.onPreviewEnd?.();}};
     const gesture=e=>{if(e.isTrusted&&e.target!==toggle&&!sliders.includes(e.target))void sound.unlock();};
-    host.addEventListener('pointerdown',gesture,{capture:true});host.addEventListener('keydown',gesture,{capture:true});
+    // Touch activation is granted on release, while mouse activation is granted on press.
+    host.addEventListener('pointerdown',e=>{if(!sound.host.lanternMobileAudio||e.pointerType==='mouse')gesture(e);},{capture:true});
+    // On iOS a touch also dispatches touchend. Starting resume on pointerup
+    // could leave a pending promise that prevents the later touchend retry.
+    host.addEventListener('pointerup',e=>{if(sound.host.lanternMobileAudio&&e.pointerType==='pen')gesture(e);},{capture:true});
+    host.addEventListener('touchend',e=>{if(sound.host.lanternMobileAudio)gesture(e);},{capture:true});
+    host.addEventListener('keydown',gesture,{capture:true});
     toggle.onclick=()=>{sound.setEnabled(!sound.enabled);if(sound.enabled)void sound.unlock();};
+    const checkSound=async()=>{
+      const previewStatus=doc.getElementById('previewStatus');
+      const mobileStatus=doc.getElementById('mobileAudioTestStatus');
+      const running=await sound.unlock();
+      let message;
+      if(!running)message='Аудиоконтекст не запустился. Проверьте, что звук включён, и коснитесь кнопки ещё раз.';
+      else if(!sound.enabled||!sound.volume||!sound.effectsVolume)message='Аудиоконтекст работает, но общая громкость или эффекты выключены.';
+      else{sound.play('spark');const session=sound.host.navigator?.audioSession;const route=session?` Системный аудиорежим: ${session.type}.`:' Системный аудиорежим недоступен.';message=sound.failed?'Аудиоконтекст запустился, но игровой сигнал создать не удалось.':`Аудиоконтекст запущен; сигнал отправлен. ${sound.recordings.status()}.${route} Если тишина — сообщите этот статус.`;}
+      previewStatus.textContent=message;
+      if(mobileStatus)mobileStatus.textContent=message;
+    };
+    for(const id of ['mobileSoundCheck','menuSoundCheck']){const button=doc.getElementById(id);if(button)button.onclick=checkSound;}
     slider.oninput=()=>{sound.setVolume(Number(slider.value)/100);void sound.unlock();};
     musicSlider.oninput=()=>{sound.setMusicVolume(Number(musicSlider.value)/100);void sound.unlock();};
     effectsSlider.oninput=()=>{sound.setEffectsVolume(Number(effectsSlider.value)/100);void sound.unlock();};

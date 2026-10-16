@@ -1,0 +1,91 @@
+{
+  "files": [
+    {
+      "file": ".gitattributes",
+      "bytes": 8,
+      "sha256": "705fd4d6451a31d36b3df7de96f83f30ac976c9b4a6d1e51671d8e2f33e2d0da"
+    },
+    {
+      "file": ".nojekyll",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "assets/audio/audio-data.js",
+      "bytes": 36116965,
+      "sha256": "f31d8aaad5b32b4cace046b60ebe1b925c7d56ceff6b5fbdecd3bea280f00704"
+    },
+    {
+      "file": "assets/audio/manifest.json",
+      "bytes": 993,
+      "sha256": "0da8533dceda461734e111f4b4fb4a1b4e61e04c5287247f98346a6a9324a17a"
+    },
+    {
+      "file": "audio-bootstrap.js",
+      "bytes": 1673,
+      "sha256": "2392818a922838259f70a3612a5e3430167c298d13751099e0a1a761985fad69"
+    },
+    {
+      "file": "AUDIO_SOURCES.md",
+      "bytes": 6063,
+      "sha256": "e75040dd1a8e63e295c0a3b966f7e3498a4dba1343cc5e632f4e0eb029d88f3b"
+    },
+    {
+      "file": "DEPLOYMENT.md",
+      "bytes": 1008,
+      "sha256": "6000dbeb45cd3b1ddd1c0387ae9af4bb96606e6160b529d46f7f4364a6bb8fc1"
+    },
+    {
+      "file": "display.js",
+      "bytes": 2154,
+      "sha256": "1204c0033a11495423ce69a544c5b36acb3cbc20859aefc2da5ee2e56112c499"
+    },
+    {
+      "file": "game.js",
+      "bytes": 19504,
+      "sha256": "4b26a2f284080fbe371cba5bf83385ace3418756f1873888266a63763d0122ee"
+    },
+    {
+      "file": "index.html",
+      "bytes": 6629,
+      "sha256": "5342247290e442030e1c494d76d2f77101b7ccef1cfd8a09cf610421ef5c7a41"
+    },
+    {
+      "file": "mobile.css",
+      "bytes": 6297,
+      "sha256": "fe66c4c18499c99f7945722010f4aaa90daa10a2beefb89c9d609a9a1bf42d0f"
+    },
+    {
+      "file": "README.md",
+      "bytes": 1713,
+      "sha256": "65fc19951886db2d29c1fbb139c6a451fea6a8b4d17692e22f7c3e241f8fcb14"
+    },
+    {
+      "file": "recordings.js",
+      "bytes": 12835,
+      "sha256": "07a313ddd9cab2c4f3ee413a43f5be5c71690f0585651b70bdb75d26bc6c276e"
+    },
+    {
+      "file": "scenery.js",
+      "bytes": 12035,
+      "sha256": "5c40d3057834f9bd71606e93fa9fd60cfdecec94280da5b74a7cf3c9ac46d540"
+    },
+    {
+      "file": "sound.js",
+      "bytes": 23519,
+      "sha256": "f3c59f136953d15a030ce0eb7c607122c15678d3caf6b49da8ee850c0c970376"
+    },
+    {
+      "file": "style.css",
+      "bytes": 11207,
+      "sha256": "e964538e0e662f3a801df920c2c0d15f705d30e652b2292d87cd77170830729b"
+    },
+    {
+      "file": "touch.js",
+      "bytes": 4866,
+      "sha256": "adc7ef28fe968722c14d79c72989cff59615a08a71fd15968c25af217106f7ab"
+    }
+  ],
+  "bytes": 36227469,
+  "httpMatched": 17
+}
