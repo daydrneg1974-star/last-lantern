@@ -209,7 +209,13 @@
     distanceSlider.onkeydown=e=>e.stopPropagation();
     doc.getElementById('audioPreview').ontoggle=()=>{if(!doc.getElementById('audioPreview').open){sound.stopDiagnostic();sound.recordings.stopAll();sound.onPreviewEnd?.();}};
     const gesture=e=>{if(e.isTrusted&&e.target!==toggle&&!sliders.includes(e.target))void sound.unlock();};
-    host.addEventListener('pointerdown',gesture,{capture:true});host.addEventListener('keydown',gesture,{capture:true});
+    // Touch page: a touch pointerdown is not an activation event (HTML spec: only mouse pointerdown,
+    // pointerup, touchend, keydown are). Starting resume() there would stall on iOS, so touches unlock on release.
+    const touchPage=Boolean(sound.options.touchActivation);
+    host.addEventListener('pointerdown',e=>{if(!touchPage||e.pointerType==='mouse')gesture(e);},{capture:true});
+    host.addEventListener('pointerup',e=>{if(touchPage&&e.pointerType==='pen')gesture(e);},{capture:true});
+    host.addEventListener('touchend',e=>{if(touchPage)gesture(e);},{capture:true});
+    host.addEventListener('keydown',gesture,{capture:true});
     toggle.onclick=()=>{sound.setEnabled(!sound.enabled);if(sound.enabled)void sound.unlock();};
     slider.oninput=()=>{sound.setVolume(Number(slider.value)/100);void sound.unlock();};
     musicSlider.oninput=()=>{sound.setMusicVolume(Number(musicSlider.value)/100);void sound.unlock();};

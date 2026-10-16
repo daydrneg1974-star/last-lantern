@@ -108,6 +108,18 @@ async function touchDrag(page,from,to,steps=8,hold=300){
     check('mobile: no page errors',logs.filter(l=>l.startsWith('PAGEERROR')).length===0,logs);
     await page.context().close();
   }
+  // ---- Debug overlay: absent by default, present with ?debug; ?debug&audio=fail starts with synth ----
+  {
+    const a=await open(browser,{w:844,h:390,mobile:true,suffix:'?mobile'});
+    check('debug: no overlay and no diagnostic text without ?debug',await a.page.evaluate(()=>!document.getElementById('lanternDebug')&&!document.body.textContent.includes('AudioContext')));
+    await a.ctx.close();
+    const b=await open(browser,{w:844,h:390,mobile:true,suffix:'?mobile&debug&audio=fail'});
+    await b.page.tap('#start');await b.page.waitForFunction(()=>window.lanternGame.get().state==='playing',{timeout:6000}).catch(()=>{});
+    await b.page.waitForTimeout(600);
+    check('debug: overlay present with ?debug and simulated audio failure still starts the round',await b.page.evaluate(()=>Boolean(document.getElementById('lanternDebug'))&&window.lanternGame.get().state==='playing'&&window.lanternSound.recordings.failed.size===5),await b.page.evaluate(()=>document.getElementById('lanternDebug').textContent.split('\n').slice(2,4)));
+    await b.page.screenshot({path:shot('e2e-m-debug.png')});
+    await b.ctx.close();
+  }
   // ---- Mobile: all audio files fail (offline assets) → game must still start ----
   {
     const ctx=await browser.newContext({viewport:{width:844,height:390},deviceScaleFactor:1,hasTouch:true,isMobile:true,userAgent:devices['iPhone 13'].userAgent});

@@ -6,7 +6,9 @@
   const HERO_SCALE=1.5,SHADOW_SCALE=1.3,SHADOW_SPEED_FACTOR=.85;
   const HIT_FLASH_SECONDS=.24,IGNITION_SECONDS=.8,BURST_SECONDS=.7;
   const MODES={normal:{name:'Обычная игра',lives:3,speed:1,immunity:3},training:{name:'Обучение',lives:5,speed:.8,immunity:4}};
-  let selectedMode='normal',activeMode='normal';
+  // A browser may restore the difficulty <select> on reload; honour it instead of silently resetting.
+  const restoredMode=document.getElementById('modeSelect')?.value;
+  let selectedMode=Object.hasOwn(MODES,restoredMode)?restoredMode:'normal',activeMode=selectedMode;
   const settings=()=>MODES[activeMode];
   let dangerPulse=0,dangerCooldown=0;
   const buildings=[];

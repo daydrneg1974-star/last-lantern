@@ -12,7 +12,7 @@
     let stick=null; // {id,x,y}
     const playing=()=>game.get().state==='playing';
     function layoutStick(dx,dy){const d=Math.hypot(dx,dy),k=d>RADIUS?RADIUS/d:1;knob.style.transform=`translate(${dx*k}px,${dy*k}px)`;}
-    function releaseStick(){stick=null;game.setAxis(0,0);base.hidden=true;knob.style.transform='';zone.classList.remove('active');}
+    function releaseStick(){if(stick!==null){try{if(zone.hasPointerCapture?.(stick.id))zone.releasePointerCapture(stick.id);}catch{}}stick=null;game.setAxis(0,0);base.hidden=true;knob.style.transform='';zone.classList.remove('active');}
     function clientPoint(e){const r=zone.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top};}
     zone.addEventListener('pointerdown',e=>{
       if(stick!==null||!playing())return;e.preventDefault();
@@ -43,7 +43,8 @@
     controls.addEventListener('contextmenu',e=>e.preventDefault());
     // Any loss of input continuity stops the hero immediately.
     const reset=()=>{releaseStick();flashButton.classList.remove('pressed');igniteButton.classList.remove('pressed');};
-    win.addEventListener('blur',reset);doc.addEventListener('visibilitychange',reset);win.addEventListener('pagehide',reset);
+    win.addEventListener('blur',reset);doc.addEventListener('visibilitychange',reset);
+    win.addEventListener('pagehide',()=>{reset();if(playing())game.overlay('paused');});
     win.addEventListener('orientationchange',reset);
     // Orientation: landscape is the play orientation; portrait pauses and asks to rotate.
     const portraitQuery=win.matchMedia?win.matchMedia('(orientation: portrait)'):null;
